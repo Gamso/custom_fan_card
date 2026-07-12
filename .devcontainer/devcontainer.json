@@ -1,0 +1,29 @@
+{
+  "name": "Custom Fan Card – Home Assistant Dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "appPort": ["8123:8123"],
+  "forwardPorts": [8123],
+  "portsAttributes": {
+    "8123": {
+      "label": "Home Assistant",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash /workspaces/custom_fan_card/.devcontainer/setup.sh",
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer/config,target=/config,type=bind",
+    "source=${localWorkspaceFolder}/dist,target=/config/www/custom_fan_card,type=bind"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
+  },
+  "remoteUser": "root"
+}

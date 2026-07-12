@@ -1,0 +1,50 @@
+{
+  "card": {
+    "name_default": "Ventilateur plafond",
+    "subtitle": "Ventilateur connecté",
+    "unavailable": "Indisponible",
+    "config_required": "Veuillez configurer la carte ventilateur."
+  },
+  "speed": {
+    "label": "VITESSE",
+    "off": "Arrêt",
+    "s1": "Très doux",
+    "s2": "Doux",
+    "s3": "Modéré",
+    "s4": "Moyen",
+    "s5": "Fort",
+    "s6": "Turbo",
+    "state_off": "Éteint",
+    "state_s1": "Vitesse 1 — Très doux",
+    "state_s2": "Vitesse 2 — Doux",
+    "state_s3": "Vitesse 3 — Modéré",
+    "state_s4": "Vitesse 4 — Moyen",
+    "state_s5": "Vitesse 5 — Fort",
+    "state_s6": "Vitesse 6 — Turbo"
+  },
+  "controls": {
+    "light": "Lumière",
+    "color_temp": "Température de couleur",
+    "temp_warm": "Chaud",
+    "temp_cool": "Froid",
+    "direction": "Saison",
+    "dir_summer": "Été",
+    "dir_winter": "Hiver",
+    "timer": "Minuterie",
+    "timer_none": "Aucune",
+    "sound": "Bip sonore",
+    "preset": "Mode préréglé",
+    "power": "Marche / Arrêt"
+  },
+  "editor": {
+    "title": "Paramètres de la carte ventilateur",
+    "name": "Nom de la carte",
+    "fan_entity": "Entité ventilateur",
+    "show_name": "Afficher le nom de la carte",
+    "summer_direction": "Sens de rotation en mode été",
+    "dir_forward": "Normal",
+    "dir_reverse": "Inverse",
+    "discovered": "Entités auto-détectées",
+    "not_found": "introuvable"
+  }
+}

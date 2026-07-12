@@ -1,0 +1,6 @@
+{
+  "name": "Custom Fan Card",
+  "render_readme": true,
+  "content_in_root": false,
+  "filename": "custom-fan-card.js"
+}
