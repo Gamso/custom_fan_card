@@ -24,16 +24,52 @@ export interface ResolvedEntities {
 
 export const TIMER_OPTIONS_MIN = [0, 15, 30, 60, 120, 240, 480] as const;
 
-export const SPEED_COUNT = 6;
+// Speed count used when the fan does not report a usable percentage_step
+// (and the count the named speed labels were written for).
+export const DEFAULT_SPEED_COUNT = 6;
 
-export function percentageToSpeed(pct: number | null | undefined): number {
-  if (!pct || pct <= 0) return 0;
-  return Math.min(SPEED_COUNT, Math.max(1, Math.round(pct / (100 / SPEED_COUNT))));
+// Above this many steps the fan is effectively continuous (HA defaults
+// speed_count to 100): a segmented bar would be unusable, so the card falls
+// back to DEFAULT_SPEED_COUNT segments, which still map to valid percentages.
+export const MAX_SPEED_SEGMENTS = 10;
+
+/**
+ * Number of discrete speeds of a fan, derived from the `percentage_step`
+ * attribute HA publishes (100 / speed_count).
+ */
+export function speedCount(fanState: HassEntity | undefined): number {
+  const step = Number(fanState?.attributes?.percentage_step);
+  if (!Number.isFinite(step) || step <= 0) return DEFAULT_SPEED_COUNT;
+  const count = Math.round(100 / step);
+  return count >= 1 && count <= MAX_SPEED_SEGMENTS ? count : DEFAULT_SPEED_COUNT;
 }
 
-export function speedToPercentage(speed: number): number {
+export function percentageToSpeed(
+  pct: number | null | undefined,
+  count: number = DEFAULT_SPEED_COUNT,
+): number {
+  if (!pct || pct <= 0) return 0;
+  return Math.min(count, Math.max(1, Math.round(pct / (100 / count))));
+}
+
+/** Percentage shown to the user for a speed (17 / 33 / 50 / 67 / 83 / 100 on 6 speeds). */
+export function speedToPercentage(speed: number, count: number = DEFAULT_SPEED_COUNT): number {
   if (speed <= 0) return 0;
-  return Math.round((speed / SPEED_COUNT) * 100);
+  return Math.round((speed / count) * 100);
+}
+
+/**
+ * Percentage sent to fan.set_percentage for a speed. Rounded down, like the HA
+ * frontend and HA's own ordered-list helper (upper bound of each speed is
+ * floor(n * 100 / count)): 67 % on a 3-speed fan would otherwise be read as
+ * speed 3 by integrations that bucket with ceil or ordered lists.
+ */
+export function speedToCommandPercentage(
+  speed: number,
+  count: number = DEFAULT_SPEED_COUNT,
+): number {
+  if (speed <= 0) return 0;
+  return Math.min(100, Math.floor((speed * 100) / count));
 }
 
 // FanEntityFeature.DIRECTION = 4
