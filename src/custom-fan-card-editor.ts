@@ -73,6 +73,7 @@ class CustomFanCardEditor extends LitElement {
       { name: "name", selector: { text: {} } },
       { name: "show_name", selector: { boolean: {} } },
       { name: "light_entity", selector: { entity: { domain: "light" } } },
+      { name: "light_independent", selector: { boolean: {} } },
       { name: "timer_entity", selector: { entity: { domain: ["number", "select"] } } },
       { name: "sound_entity", selector: { entity: { domain: "switch" } } },
     ];
@@ -107,6 +108,7 @@ class CustomFanCardEditor extends LitElement {
       show_name: "editor.show_name",
       summer_direction: "editor.summer_direction",
       light_entity: "editor.light_entity",
+      light_independent: "editor.light_independent",
       timer_entity: "editor.timer_entity",
       sound_entity: "editor.sound_entity",
     };

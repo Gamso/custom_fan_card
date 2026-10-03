@@ -42,6 +42,7 @@ describe("editor", () => {
       "name",
       "show_name",
       "light_entity",
+      "light_independent",
       "timer_entity",
       "sound_entity",
       "summer_direction",
