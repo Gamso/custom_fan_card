@@ -1,3 +1,5 @@
+import type { HassEntity, HomeAssistant } from "./ha-types";
+
 export interface CustomFanCardConfig {
   name?: string;
   show_name?: boolean;
@@ -35,7 +37,7 @@ export function speedToPercentage(speed: number): number {
 }
 
 // FanEntityFeature.DIRECTION = 4
-export function fanSupportsDirection(fanState: any): boolean {
+export function fanSupportsDirection(fanState: HassEntity | undefined): boolean {
   const features = Number(fanState?.attributes?.supported_features ?? 0);
   return (features & 4) !== 0;
 }
@@ -58,7 +60,7 @@ export function fanBaseName(fanEntity: string | undefined): string | null {
  * robust to language-specific suffixes (e.g. "_minuteur", "_son", "_timer").
  */
 export function resolveEntities(
-  hass: any,
+  hass: HomeAssistant | undefined,
   config: CustomFanCardConfig,
 ): ResolvedEntities {
   const base = fanBaseName(config.fan_entity);
