@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import "./custom-fan-card-editor";
+import type { HassEntity, HomeAssistant } from "./ha-types";
 import { localize } from "./localize/localize";
 import {
   CustomFanCardConfig,
@@ -15,7 +16,7 @@ import {
 } from "./types";
 
 class CustomFanCard extends LitElement {
-  @property({ attribute: false }) public hass!: any;
+  @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: CustomFanCardConfig;
 
   // ── Static HA card registration ─────────────────────────────────────────────
@@ -56,20 +57,20 @@ class CustomFanCard extends LitElement {
     return resolveEntities(this.hass, this._config);
   }
 
-  private get _fanState(): any {
-    return this.hass?.states[this._entities.fan];
+  private get _fanState(): HassEntity | undefined {
+    return this.hass?.states?.[this._entities.fan];
   }
-  private get _lightState(): any {
+  private get _lightState(): HassEntity | undefined {
     const id = this._entities.light;
-    return id ? this.hass?.states[id] : undefined;
+    return id ? this.hass?.states?.[id] : undefined;
   }
-  private get _timerState(): any {
+  private get _timerState(): HassEntity | undefined {
     const id = this._entities.timer;
-    return id ? this.hass?.states[id] : undefined;
+    return id ? this.hass?.states?.[id] : undefined;
   }
-  private get _soundState(): any {
+  private get _soundState(): HassEntity | undefined {
     const id = this._entities.sound;
-    return id ? this.hass?.states[id] : undefined;
+    return id ? this.hass?.states?.[id] : undefined;
   }
 
   private get _currentSpeed(): number {

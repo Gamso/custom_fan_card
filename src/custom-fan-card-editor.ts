@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { localize, TranslationKey } from "./localize/localize";
 import { CustomFanCardConfig, resolveEntities, fanSupportsDirection } from "./types";
+import { fireEvent, HomeAssistant } from "./ha-types";
 
 // Ensure the HA form components are registered (they ship with the frontend
 // but are only loaded on demand via other cards' config elements).
@@ -15,7 +16,7 @@ const loadHaComponents = () => {
 };
 
 class CustomFanCardEditor extends LitElement {
-  @property({ attribute: false }) public hass!: any;
+  @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: CustomFanCardConfig;
 
   public connectedCallback(): void {
@@ -73,13 +74,7 @@ class CustomFanCardEditor extends LitElement {
 
   private _valueChanged(ev: CustomEvent): void {
     const config = ev.detail.value;
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        bubbles: true,
-        composed: true,
-        detail: { config },
-      })
-    );
+    fireEvent(this, "config-changed", { config });
   }
 
   private _renderDiscovered() {
