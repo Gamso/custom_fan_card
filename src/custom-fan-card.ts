@@ -27,19 +27,41 @@ class CustomFanCard extends LitElement {
 
   // ── Static HA card registration ─────────────────────────────────────────────
 
-  public static getStubConfig(): CustomFanCardConfig {
-    return {
-      fan_entity: "fan.ceiling_fan_with_light",
-      show_name: true,
-    };
+  // Called by the card picker with the instance's entities: preview the first
+  // real fan rather than a hard-coded id that only exists in the devcontainer.
+  public static getStubConfig(
+    hass?: HomeAssistant,
+    entities: string[] = [],
+  ): CustomFanCardConfig {
+    const fan =
+      entities.find((id) => id.startsWith("fan.")) ??
+      Object.keys(hass?.states ?? {}).find((id) => id.startsWith("fan.")) ??
+      "fan.ceiling_fan_with_light";
+    return { fan_entity: fan, show_name: true };
   }
 
   public static getConfigElement() {
     return document.createElement("custom-fan-card-editor");
   }
 
+  // Masonry height in ~50 px units: status row (2) + control bar (1), plus the
+  // title, the speed bar and the colour-temperature row when shown.
   public getCardSize(): number {
-    return 4;
+    let size = 3;
+    if (this._config?.show_name !== false) size += 1;
+    if (!this._fanState || this._fanSupportsSpeed) size += 1;
+    if (this._showColorTemp) size += 1;
+    return size;
+  }
+
+  // Sections view: full width by default, never narrower than half, height
+  // follows the content (the temperature row comes and goes).
+  public getGridOptions(): {
+    columns: number;
+    rows: "auto";
+    min_columns: number;
+  } {
+    return { columns: 12, rows: "auto", min_columns: 6 };
   }
 
   // ── Config ──────────────────────────────────────────────────────────────────
@@ -215,6 +237,10 @@ class CustomFanCard extends LitElement {
     return Number(
       this._lightState?.attributes?.color_temp_kelvin ?? this._minKelvin
     );
+  }
+
+  private get _showColorTemp(): boolean {
+    return !!this._lightState && this._isLightOn && this._lightSupportsColorTemp;
   }
 
   private get _isSoundOn(): boolean {
@@ -450,7 +476,13 @@ class CustomFanCard extends LitElement {
 
     const fan = this._fanState;
     if (!fan) {
-      return html`<ha-card><div class="error">${this._t("card.config_required")}</div></ha-card>`;
+      // The config is valid; the entity just does not exist (renamed, removed,
+      // integration not loaded yet): say which one instead of "configure me".
+      return html`<ha-card>
+        <div class="error" role="alert">
+          ${this._t("card.entity_not_found", { entity: this._config.fan_entity })}
+        </div>
+      </ha-card>`;
     }
 
     const speed = this._currentSpeed;
@@ -653,7 +685,7 @@ class CustomFanCard extends LitElement {
               : nothing}
           </div>
 
-          ${this._lightState && this._isLightOn && this._lightSupportsColorTemp
+          ${this._showColorTemp
             ? html`
               <div class="temp-row">
                 <div class="temp-divider"></div>

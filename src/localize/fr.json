@@ -3,7 +3,7 @@
     "name_default": "Ventilateur plafond",
     "subtitle": "Ventilateur connecté",
     "unavailable": "Indisponible",
-    "config_required": "Veuillez configurer la carte ventilateur."
+    "entity_not_found": "Entité {entity} introuvable"
   },
   "speed": {
     "label": "VITESSE",
