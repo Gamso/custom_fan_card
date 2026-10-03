@@ -15,6 +15,7 @@
     "s5": "Fort",
     "s6": "Turbo",
     "state_off": "Éteint",
+    "state_on": "Allumé",
     "state_s1": "Vitesse 1 — Très doux",
     "state_s2": "Vitesse 2 — Doux",
     "state_s3": "Vitesse 3 — Modéré",
@@ -36,7 +37,8 @@
     "timer_none": "Aucune",
     "sound": "Bip sonore",
     "preset": "Mode préréglé",
-    "power": "Marche / Arrêt"
+    "power": "Marche / Arrêt",
+    "oscillate": "Oscillation"
   },
   "editor": {
     "title": "Paramètres de la carte ventilateur",

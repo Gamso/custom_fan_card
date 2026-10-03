@@ -72,10 +72,23 @@ export function speedToCommandPercentage(
   return Math.min(100, Math.floor((speed * 100) / count));
 }
 
-// FanEntityFeature.DIRECTION = 4
-export function fanSupportsDirection(fanState: HassEntity | undefined): boolean {
+// homeassistant/components/fan/const.py — class FanEntityFeature(IntFlag).
+export const FanFeature = {
+  SET_SPEED: 1,
+  OSCILLATE: 2,
+  DIRECTION: 4,
+  PRESET_MODE: 8,
+  TURN_OFF: 16,
+  TURN_ON: 32,
+} as const;
+
+export function fanSupports(fanState: HassEntity | undefined, feature: number): boolean {
   const features = Number(fanState?.attributes?.supported_features ?? 0);
-  return (features & 4) !== 0;
+  return (features & feature) !== 0;
+}
+
+export function fanSupportsDirection(fanState: HassEntity | undefined): boolean {
+  return fanSupports(fanState, FanFeature.DIRECTION);
 }
 
 /**

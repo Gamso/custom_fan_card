@@ -15,6 +15,7 @@
     "s5": "Strong",
     "s6": "Turbo",
     "state_off": "Off",
+    "state_on": "On",
     "state_s1": "Speed 1 — Gentle",
     "state_s2": "Speed 2 — Soft",
     "state_s3": "Speed 3 — Moderate",
@@ -36,7 +37,8 @@
     "timer_none": "None",
     "sound": "Sound beep",
     "preset": "Preset mode",
-    "power": "Power"
+    "power": "Power",
+    "oscillate": "Oscillation"
   },
   "editor": {
     "title": "Fan card settings",

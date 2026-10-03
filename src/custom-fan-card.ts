@@ -14,7 +14,9 @@ import {
   speedToCommandPercentage,
   speedToPercentage,
   resolveEntities,
+  fanSupports,
   fanSupportsDirection,
+  FanFeature,
 } from "./types";
 
 class CustomFanCard extends LitElement {
@@ -93,6 +95,26 @@ class CustomFanCard extends LitElement {
     return fanSupportsDirection(this._fanState);
   }
 
+  private get _fanSupportsSpeed(): boolean {
+    return fanSupports(this._fanState, FanFeature.SET_SPEED);
+  }
+
+  private get _fanSupportsOscillate(): boolean {
+    return fanSupports(this._fanState, FanFeature.OSCILLATE);
+  }
+
+  private get _isOscillating(): boolean {
+    return this._fanState?.attributes?.oscillating === true;
+  }
+
+  private get _canTurnOn(): boolean {
+    return fanSupports(this._fanState, FanFeature.TURN_ON);
+  }
+
+  private get _canTurnOff(): boolean {
+    return fanSupports(this._fanState, FanFeature.TURN_OFF);
+  }
+
   private get _fanDirection(): "forward" | "reverse" {
     return this._fanState?.attributes?.direction === "reverse"
       ? "reverse"
@@ -146,10 +168,8 @@ class CustomFanCard extends LitElement {
     return s !== undefined && s !== "off" && s !== "unavailable";
   }
 
-  // FanEntityFeature.PRESET_MODE = 8
   private get _fanSupportsPreset(): boolean {
-    const features = Number(this._fanState?.attributes?.supported_features ?? 0);
-    return (features & 8) !== 0 && this._presetModes.length > 0;
+    return fanSupports(this._fanState, FanFeature.PRESET_MODE) && this._presetModes.length > 0;
   }
   private get _presetModes(): string[] {
     return this._fanState?.attributes?.preset_modes ?? [];
@@ -208,6 +228,10 @@ class CustomFanCard extends LitElement {
   // The named labels (Gentle … Turbo) were written for 6-speed fans; any other
   // speed count gets a plain numbered label.
   private _speedStateLabel(speed: number): string {
+    // A fan without SET_SPEED has no speed to name: plain on / off.
+    if (!this._fanSupportsSpeed) {
+      return this._t(this._isOn ? "speed.state_on" : "speed.state_off");
+    }
     if (speed === 0) return this._t("speed.state_off");
     if (this._speedCount !== DEFAULT_SPEED_COUNT) {
       return this._t("speed.state_generic", { speed });
@@ -238,6 +262,13 @@ class CustomFanCard extends LitElement {
   private _togglePower(): void {
     this.hass.callService("fan", this._isOn ? "turn_off" : "turn_on", {
       entity_id: this._entities.fan,
+    });
+  }
+
+  private _toggleOscillate(): void {
+    this.hass.callService("fan", "oscillate", {
+      entity_id: this._entities.fan,
+      oscillating: !this._isOscillating,
     });
   }
 
@@ -298,10 +329,14 @@ class CustomFanCard extends LitElement {
 
   private _renderSpeedIcon(speed: number) {
     const animDurations = ["none", "2.5s", "1.5s", "0.9s", "0.6s", "0.35s", "0.15s"];
-    const isOff = speed === 0;
+    // A fan without SET_SPEED has no percentage: spin at a medium pace when on.
+    const onOffOnly = !this._fanSupportsSpeed && this._isOn;
+    const isOff = speed === 0 && !onOffOnly;
     // Scale the speed onto the 6-step animation table so any speed count spins
     // from slow to fast (identity mapping on 6-speed fans).
-    const step = Math.max(1, Math.round((speed * DEFAULT_SPEED_COUNT) / this._speedCount));
+    const step = onOffOnly
+      ? 3
+      : Math.max(1, Math.round((speed * DEFAULT_SPEED_COUNT) / this._speedCount));
     const iconStyle = isOff
       ? ""
       : `animation: spin ${animDurations[step]} linear infinite;`;
@@ -364,7 +399,7 @@ class CustomFanCard extends LitElement {
                     : this._speedStateLabel(speed)}
                 </div>
                 <div class="fan-pct">
-                  ${!this._isOn
+                  ${!this._isOn || !this._fanSupportsSpeed
                     ? "—"
                     : this._activePreset
                     ? this._t("controls.preset")
@@ -422,36 +457,59 @@ class CustomFanCard extends LitElement {
               : nothing}
           </div>
 
-          <div class="speed-bar">
-            ${Array.from({ length: this._speedCount }, (_, i) => i + 1).map(
-              (s) => html`
-                <button
-                  class="speed-seg ${speed >= s && speed > 0 ? "filled" : ""} ${speed === s ? "active" : ""}"
-                  @click=${() => this._setSpeed(s)}
-                  ?disabled=${isUnavailable}
-                  aria-label="${this._speedLabel(s)}"
-                  aria-pressed=${speed === s}
-                >
-                  <span class="speed-seg-fill"></span>
-                  <span class="speed-seg-num">${s}</span>
-                </button>
-              `
-            )}
-          </div>
+          ${this._fanSupportsSpeed
+            ? html`
+              <div class="speed-bar">
+                ${Array.from({ length: this._speedCount }, (_, i) => i + 1).map(
+                  (s) => html`
+                    <button
+                      class="speed-seg ${speed >= s && speed > 0 ? "filled" : ""} ${speed === s ? "active" : ""}"
+                      @click=${() => this._setSpeed(s)}
+                      ?disabled=${isUnavailable}
+                      aria-label="${this._speedLabel(s)}"
+                      aria-pressed=${speed === s}
+                    >
+                      <span class="speed-seg-fill"></span>
+                      <span class="speed-seg-num">${s}</span>
+                    </button>
+                  `
+                )}
+              </div>
+            `
+            : nothing}
 
           <div class="control-bar">
-            <button
-              class="ctrl-btn power ${this._isOn ? "on" : ""}"
-              @click=${this._togglePower}
-              ?disabled=${isUnavailable}
-              aria-label="${this._t("controls.power")}"
-              title="${this._t("controls.power")}"
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                <path d="M12 4v8"/>
-                <path d="M7.8 6.8a6 6 0 1 0 8.4 0"/>
-              </svg>
-            </button>
+            ${this._canTurnOn || this._canTurnOff
+              ? html`
+                <button
+                  class="ctrl-btn power ${this._isOn ? "on" : ""}"
+                  @click=${this._togglePower}
+                  ?disabled=${isUnavailable || (this._isOn ? !this._canTurnOff : !this._canTurnOn)}
+                  aria-label="${this._t("controls.power")}"
+                  title="${this._t("controls.power")}"
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M12 4v8"/>
+                    <path d="M7.8 6.8a6 6 0 1 0 8.4 0"/>
+                  </svg>
+                </button>
+              `
+              : nothing}
+
+            ${this._fanSupportsOscillate
+              ? html`
+                <button
+                  class="ctrl-btn oscillate ${this._isOscillating ? "on" : ""}"
+                  @click=${this._toggleOscillate}
+                  ?disabled=${isUnavailable || !this._isOn}
+                  aria-label="${this._t("controls.oscillate")}"
+                  aria-pressed=${this._isOscillating}
+                  title="${this._t("controls.oscillate")}"
+                >
+                  <ha-icon icon="${this._isOscillating ? "mdi:arrow-oscillating" : "mdi:arrow-oscillating-off"}"></ha-icon>
+                </button>
+              `
+              : nothing}
 
             ${this._lightState
               ? html`
