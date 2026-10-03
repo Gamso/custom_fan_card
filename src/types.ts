@@ -72,6 +72,22 @@ export function speedToCommandPercentage(
   return Math.min(100, Math.floor((speed * 100) / count));
 }
 
+// States in which the fan must not be treated as running: "unknown" (e.g.
+// right after a restart, or a template fan whose source is missing) is as
+// little "on" as "off" is.
+export const OFF_LIKE_STATES: ReadonlySet<string> = new Set(["off", "unavailable", "unknown"]);
+
+// States in which the fan cannot be controlled at all.
+export const UNAVAILABLE_STATES: ReadonlySet<string> = new Set(["unavailable", "unknown"]);
+
+export function isFanOn(fanState: HassEntity | undefined): fanState is HassEntity {
+  return fanState !== undefined && !OFF_LIKE_STATES.has(fanState.state);
+}
+
+export function isFanUnavailable(fanState: HassEntity | undefined): boolean {
+  return fanState !== undefined && UNAVAILABLE_STATES.has(fanState.state);
+}
+
 // homeassistant/components/fan/const.py — class FanEntityFeature(IntFlag).
 export const FanFeature = {
   SET_SPEED: 1,

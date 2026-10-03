@@ -17,6 +17,8 @@ import {
   fanSupports,
   fanSupportsDirection,
   FanFeature,
+  isFanOn,
+  isFanUnavailable,
 } from "./types";
 
 class CustomFanCard extends LitElement {
@@ -82,7 +84,7 @@ class CustomFanCard extends LitElement {
 
   private get _currentSpeed(): number {
     const fan = this._fanState;
-    if (!fan || fan.state === "off" || fan.state === "unavailable") return 0;
+    if (!isFanOn(fan)) return 0;
     return percentageToSpeed(Number(fan.attributes?.percentage ?? 0), this._speedCount);
   }
 
@@ -164,8 +166,7 @@ class CustomFanCard extends LitElement {
   // may report percentage 0. Controls that the hardware ignores while powered
   // off (light, timer, sound, direction, preset) key off this.
   private get _isOn(): boolean {
-    const s = this._fanState?.state;
-    return s !== undefined && s !== "off" && s !== "unavailable";
+    return isFanOn(this._fanState);
   }
 
   private get _fanSupportsPreset(): boolean {
@@ -367,7 +368,7 @@ class CustomFanCard extends LitElement {
     }
 
     const speed = this._currentSpeed;
-    const isUnavailable = fan.state === "unavailable";
+    const isUnavailable = isFanUnavailable(fan);
     const cardName =
       this._config.name ||
       fan.attributes?.friendly_name ||
