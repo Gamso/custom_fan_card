@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "lit";
+import { LitElement, html, css, nothing, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import "./custom-fan-card-editor";
@@ -62,8 +62,67 @@ class CustomFanCard extends LitElement {
     return localize(this.hass, key, params);
   }
 
+  // ── Entity resolution (memoized) ────────────────────────────────────────────
+  //
+  // Discovery scans every entity id, so it runs once per config change or
+  // entity-registry change (number of entities, or a resolved entity gone) —
+  // not on each of the dozens of getter reads of a render.
+
+  private _resolved?: ResolvedEntities;
+  private _resolvedFor?: HomeAssistant["states"];
+  private _resolvedEntityCount = -1;
+
   private get _entities(): ResolvedEntities {
-    return resolveEntities(this.hass, this._config);
+    return this._resolved ?? resolveEntities(this.hass, this._config);
+  }
+
+  private _trackedIds(resolved: ResolvedEntities): string[] {
+    return [resolved.fan, resolved.light, resolved.timer, resolved.sound].filter(
+      (id): id is string => !!id,
+    );
+  }
+
+  private _needsResolve(): boolean {
+    if (!this._resolved) return true;
+    const states = this.hass?.states;
+    if (!states) return false;
+    if (states === this._resolvedFor) return false;
+    if (Object.keys(states).length !== this._resolvedEntityCount) return true;
+    return this._trackedIds(this._resolved).some((id) => !(id in states));
+  }
+
+  private _resolve(): void {
+    const states = this.hass?.states;
+    this._resolved = resolveEntities(this.hass, this._config);
+    this._resolvedFor = states;
+    this._resolvedEntityCount = states ? Object.keys(states).length : -1;
+  }
+
+  // Only re-render when something the card displays changed: the config, the
+  // language, the set of entities, or the state of one of the tracked ones.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (!this._config) return false;
+    if ([...changed.keys()].some((k) => k !== "hass")) return true;
+    const old = changed.get("hass") as HomeAssistant | undefined;
+    if (!old || !this.hass || !this._resolved) return true;
+    if (
+      old.language !== this.hass.language ||
+      old.locale?.language !== this.hass.locale?.language
+    ) {
+      return true;
+    }
+    if (this._needsResolve()) return true;
+    return this._trackedIds(this._resolved).some(
+      (id) => old.states?.[id] !== this.hass.states?.[id],
+    );
+  }
+
+  protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("_config") || this._needsResolve()) {
+      this._resolve();
+    } else {
+      this._resolvedFor = this.hass?.states;
+    }
   }
 
   private get _fanState(): HassEntity | undefined {
@@ -515,7 +574,7 @@ class CustomFanCard extends LitElement {
             ${this._lightState
               ? html`
                 <button
-                  class="ctrl-btn ${this._isLightOn ? "on" : ""}"
+                  class="ctrl-btn light ${this._isLightOn ? "on" : ""}"
                   @click=${this._toggleLight}
                   ?disabled=${isUnavailable || !this._isOn}
                   aria-label="${this._t("controls.light")}"
@@ -533,7 +592,7 @@ class CustomFanCard extends LitElement {
             ${this._soundState
               ? html`
                 <button
-                  class="ctrl-btn ${this._isSoundOn ? "on" : ""}"
+                  class="ctrl-btn sound ${this._isSoundOn ? "on" : ""}"
                   @click=${this._toggleSound}
                   ?disabled=${isUnavailable || !this._isOn}
                   aria-label="${this._t("controls.sound")}"
