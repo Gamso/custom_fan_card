@@ -9,6 +9,10 @@ export interface CustomFanCardConfig {
   // for summer, so this lets the user match the card's Été/Hiver buttons to the
   // fan's actual rotation. Defaults to "forward".
   summer_direction?: "forward" | "reverse";
+  // Most ceiling-fan kits (CREATE Windcalm, Klassfan) cut the light together
+  // with the fan, so the light button is disabled while the fan is off. Set to
+  // true for fans whose light works on its own. Defaults to false.
+  light_independent?: boolean;
   // Optional overrides — auto-discovered from fan_entity base name when omitted.
   light_entity?: string;
   timer_entity?: string;

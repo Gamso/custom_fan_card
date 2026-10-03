@@ -487,6 +487,11 @@ class CustomFanCard extends LitElement {
 
     const speed = this._currentSpeed;
     const isUnavailable = isFanUnavailable(fan);
+    // The light follows the fan unless configured as independent, in which
+    // case only the light's own availability matters.
+    const lightDisabled = this._config.light_independent
+      ? isFanUnavailable(this._lightState)
+      : isUnavailable || !this._isOn;
     const cardName =
       this._config.name ||
       fan.attributes?.friendly_name ||
@@ -638,7 +643,7 @@ class CustomFanCard extends LitElement {
                 <button
                   class="ctrl-btn light ${this._isLightOn ? "on" : ""}"
                   @click=${this._toggleLight}
-                  ?disabled=${isUnavailable || !this._isOn}
+                  ?disabled=${lightDisabled}
                   aria-label="${this._t("controls.light")}"
                   title="${this._t("controls.light")}"
                 >
@@ -699,7 +704,7 @@ class CustomFanCard extends LitElement {
                     step="100"
                     .value=${live(String(this._currentKelvin))}
                     @change=${this._setColorTemp}
-                    ?disabled=${isUnavailable}
+                    ?disabled=${this._config.light_independent ? lightDisabled : isUnavailable}
                     aria-label="${this._t("controls.color_temp")}"
                   />
                   <span class="temp-label cool">${this._t("controls.temp_cool")}</span>
