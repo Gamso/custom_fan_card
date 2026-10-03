@@ -720,14 +720,41 @@ class CustomFanCard extends LitElement {
   }
 
   static styles = css`
+    /* Every colour derives from the HA theme, so light and dark themes (and
+       custom themes) both render correctly. Mixing with --primary-text-color
+       darkens a tint on light themes and lightens it on dark ones, keeping
+       text readable on either. The hex values are fallbacks only. */
     :host {
-      --wc-accent: #378add;
-      --wc-accent-light: #e6f1fb;
-      --wc-accent-dark: #0c447c;
-      --wc-accent-mid: #185fa5;
-      --wc-red-light: #fcebeb;
-      --wc-red: #e24b4a;
-      --wc-red-dark: #a32d2d;
+      --wc-accent: var(--custom-fan-card-accent, var(--primary-color, #378add));
+      --wc-on-accent: var(--text-primary-color, #fff);
+      --wc-accent-light: color-mix(
+        in srgb,
+        var(--wc-accent) 18%,
+        var(--card-background-color, #fff)
+      );
+      --wc-accent-dark: color-mix(
+        in srgb,
+        var(--wc-accent) 65%,
+        var(--primary-text-color, #212121)
+      );
+      --wc-summer: var(--custom-fan-card-summer, var(--orange-color, #e0912f));
+      --wc-warm-text: color-mix(
+        in srgb,
+        var(--wc-summer) 75%,
+        var(--primary-text-color, #212121)
+      );
+      --wc-cool-text: color-mix(
+        in srgb,
+        var(--wc-accent) 75%,
+        var(--primary-text-color, #212121)
+      );
+      --wc-focus-ring: 2px solid var(--wc-accent);
+    }
+
+    button:focus-visible,
+    .temp-slider:focus-visible {
+      outline: var(--wc-focus-ring);
+      outline-offset: 2px;
     }
 
     ha-card {
@@ -813,12 +840,12 @@ class CustomFanCard extends LitElement {
       color: var(--primary-text-color);
     }
     .season-btn.summer.active {
-      background: #e0912f;
-      color: #fff;
+      background: var(--wc-summer);
+      color: var(--wc-on-accent);
     }
     .season-btn.winter.active {
       background: var(--wc-accent);
-      color: #fff;
+      color: var(--wc-on-accent);
     }
     .season-btn ha-icon {
       --mdc-icon-size: 20px;
@@ -842,12 +869,12 @@ class CustomFanCard extends LitElement {
       border-color: var(--wc-accent);
     }
     .preset-select:focus-visible {
-      box-shadow: 0 0 0 2px var(--wc-accent-light);
+      box-shadow: 0 0 0 2px var(--wc-accent);
     }
     .preset-select.active {
       border-color: var(--wc-accent);
       background: var(--wc-accent);
-      color: #fff;
+      color: var(--wc-on-accent);
     }
     .preset-select:disabled {
       cursor: default;
@@ -887,6 +914,14 @@ class CustomFanCard extends LitElement {
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
+    }
+
+    /* The spin is set inline per speed; !important lets the user's
+       reduced-motion preference win over it. */
+    @media (prefers-reduced-motion: reduce) {
+      .fan-svg {
+        animation: none !important;
+      }
     }
 
     .fan-info { min-width: 0; }
@@ -1021,12 +1056,12 @@ class CustomFanCard extends LitElement {
       border-color: var(--wc-accent);
     }
     .ctrl-select:focus-visible {
-      box-shadow: 0 0 0 2px var(--wc-accent-light);
+      box-shadow: 0 0 0 2px var(--wc-accent);
     }
     .ctrl-select.active {
       border-color: var(--wc-accent);
       background: var(--wc-accent);
-      color: #fff;
+      color: var(--wc-on-accent);
     }
     .ctrl-select:disabled {
       cursor: default;
@@ -1051,10 +1086,10 @@ class CustomFanCard extends LitElement {
       flex-shrink: 0;
     }
     .temp-label.warm {
-      color: #ba7517;
+      color: var(--wc-warm-text);
     }
     .temp-label.cool {
-      color: #378add;
+      color: var(--wc-cool-text);
     }
     .temp-value {
       font-size: 11px;
@@ -1069,6 +1104,8 @@ class CustomFanCard extends LitElement {
       appearance: none;
       height: 8px;
       border-radius: 4px;
+      /* Depicts the light's colour temperature itself (warm to cool white),
+         so it is intentionally theme-independent. */
       background: linear-gradient(to right, #ffb46e, #fff6e8 50%, #cfe4ff);
       outline: none;
       cursor: pointer;
@@ -1099,7 +1136,7 @@ class CustomFanCard extends LitElement {
     .error {
       padding: 16px;
       font-size: 13px;
-      color: var(--error-color, var(--wc-red));
+      color: var(--error-color, #db4437);
     }
   `;
 }
