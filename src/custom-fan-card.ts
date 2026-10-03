@@ -271,6 +271,17 @@ class CustomFanCard extends LitElement {
     return TIMER_OPTIONS_MIN.map(String);
   }
 
+  // Options rendered in the timer select: the entity's current value is added
+  // when it is not one of the presets (e.g. a number timer set to 45 min
+  // elsewhere), so the select never falls back to showing "None".
+  private get _timerChoices(): string[] {
+    const options = this._timerOptions;
+    const value = this._timerValue;
+    if (value === "" || options.includes(value)) return options;
+    if (this._timerDomain === "select") return [...options, value];
+    return [...options, value].sort((a, b) => Number(a) - Number(b));
+  }
+
   private _formatTimerOption(raw: string): string {
     const n = Number(raw);
     if (raw.trim() === "" || Number.isNaN(n)) return raw;
@@ -308,11 +319,27 @@ class CustomFanCard extends LitElement {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
+  // Every service call goes through here: a rejected call (unsupported
+  // service, device offline, validation error) is logged once instead of
+  // surfacing as an "Uncaught (in promise)", and the card re-renders so
+  // controls bound with live() snap back to the entity's real state.
+  private _call(domain: string, service: string, data: Record<string, unknown>): void {
+    const fail = (err: unknown) => {
+      console.error(`custom-fan-card: ${domain}.${service} failed`, err);
+      this.requestUpdate();
+    };
+    try {
+      Promise.resolve(this.hass.callService(domain, service, data)).catch(fail);
+    } catch (err) {
+      fail(err);
+    }
+  }
+
   private _setSpeed(speed: number): void {
     if (speed === 0) {
-      this.hass.callService("fan", "turn_off", { entity_id: this._entities.fan });
+      this._call("fan", "turn_off", { entity_id: this._entities.fan });
     } else {
-      this.hass.callService("fan", "set_percentage", {
+      this._call("fan", "set_percentage", {
         entity_id: this._entities.fan,
         percentage: speedToCommandPercentage(speed, this._speedCount),
       });
@@ -320,27 +347,27 @@ class CustomFanCard extends LitElement {
   }
 
   private _togglePower(): void {
-    this.hass.callService("fan", this._isOn ? "turn_off" : "turn_on", {
+    this._call("fan", this._isOn ? "turn_off" : "turn_on", {
       entity_id: this._entities.fan,
     });
   }
 
   private _toggleOscillate(): void {
-    this.hass.callService("fan", "oscillate", {
+    this._call("fan", "oscillate", {
       entity_id: this._entities.fan,
       oscillating: !this._isOscillating,
     });
   }
 
   private _setPreset(ev: Event): void {
-    this.hass.callService("fan", "set_preset_mode", {
+    this._call("fan", "set_preset_mode", {
       entity_id: this._entities.fan,
       preset_mode: (ev.target as HTMLSelectElement).value,
     });
   }
 
   private _setDirection(direction: "forward" | "reverse"): void {
-    this.hass.callService("fan", "set_direction", {
+    this._call("fan", "set_direction", {
       entity_id: this._entities.fan,
       direction,
     });
@@ -352,13 +379,13 @@ class CustomFanCard extends LitElement {
 
   private _toggleLight(): void {
     if (!this._entities.light) return;
-    this.hass.callService("light", "toggle", { entity_id: this._entities.light });
+    this._call("light", "toggle", { entity_id: this._entities.light });
   }
 
   private _setColorTemp(ev: Event): void {
     if (!this._entities.light) return;
     const kelvin = Number((ev.target as HTMLInputElement).value);
-    this.hass.callService("light", "turn_on", {
+    this._call("light", "turn_on", {
       entity_id: this._entities.light,
       color_temp_kelvin: kelvin,
     });
@@ -368,12 +395,12 @@ class CustomFanCard extends LitElement {
     if (!this._entities.timer) return;
     const value = (ev.target as HTMLSelectElement).value;
     if (this._timerDomain === "select") {
-      this.hass.callService("select", "select_option", {
+      this._call("select", "select_option", {
         entity_id: this._entities.timer,
         option: value,
       });
     } else {
-      this.hass.callService("number", "set_value", {
+      this._call("number", "set_value", {
         entity_id: this._entities.timer,
         value: Number(value),
       });
@@ -382,7 +409,7 @@ class CustomFanCard extends LitElement {
 
   private _toggleSound(): void {
     if (!this._entities.sound) return;
-    this.hass.callService("switch", "toggle", { entity_id: this._entities.sound });
+    this._call("switch", "toggle", { entity_id: this._entities.sound });
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -506,8 +533,11 @@ class CustomFanCard extends LitElement {
                         aria-label="${this._t("controls.preset")}"
                         title="${this._t("controls.preset")}"
                       >
+                        ${this._presetModes.includes(this._presetMode)
+                          ? nothing
+                          : html`<option value="" disabled selected>—</option>`}
                         ${this._presetModes.map(
-                          (p) => html`<option value="${p}">${this._formatPreset(p)}</option>`
+                          (p) => html`<option value="${p}" ?selected=${p === this._presetMode}>${this._formatPreset(p)}</option>`
                         )}
                       </select>
                     `
@@ -613,9 +643,9 @@ class CustomFanCard extends LitElement {
                   aria-label="${this._t("controls.timer")}"
                   title="${this._t("controls.timer")}"
                 >
-                  ${this._timerOptions.map(
+                  ${this._timerChoices.map(
                     (opt) => html`
-                      <option value="${opt}">${this._formatTimerOption(opt)}</option>
+                      <option value="${opt}" ?selected=${opt === this._timerValue}>${this._formatTimerOption(opt)}</option>
                     `
                   )}
                 </select>
@@ -635,7 +665,7 @@ class CustomFanCard extends LitElement {
                     min="${this._minKelvin}"
                     max="${this._maxKelvin}"
                     step="100"
-                    .value=${String(this._currentKelvin)}
+                    .value=${live(String(this._currentKelvin))}
                     @change=${this._setColorTemp}
                     ?disabled=${isUnavailable}
                     aria-label="${this._t("controls.color_temp")}"
