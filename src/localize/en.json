@@ -49,6 +49,10 @@
     "dir_forward": "Normal",
     "dir_reverse": "Reverse",
     "discovered": "Auto-discovered entities",
-    "not_found": "not found"
+    "not_found": "not found",
+    "light_entity": "Light entity (optional)",
+    "timer_entity": "Timer entity (optional)",
+    "sound_entity": "Beep switch (optional)",
+    "ambiguous": "several matches, pick one above"
   }
 }

@@ -49,6 +49,10 @@
     "dir_forward": "Normal",
     "dir_reverse": "Inverse",
     "discovered": "Entités auto-détectées",
-    "not_found": "introuvable"
+    "not_found": "introuvable",
+    "light_entity": "Entité lumière (facultatif)",
+    "timer_entity": "Entité minuterie (facultatif)",
+    "sound_entity": "Interrupteur du bip (facultatif)",
+    "ambiguous": "plusieurs candidates, choisissez ci-dessus"
   }
 }
