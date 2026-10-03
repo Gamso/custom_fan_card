@@ -20,7 +20,9 @@
     "state_s3": "Vitesse 3 — Modéré",
     "state_s4": "Vitesse 4 — Moyen",
     "state_s5": "Vitesse 5 — Fort",
-    "state_s6": "Vitesse 6 — Turbo"
+    "state_s6": "Vitesse 6 — Turbo",
+    "generic": "Vitesse {speed}",
+    "state_generic": "Vitesse {speed}"
   },
   "controls": {
     "light": "Lumière",

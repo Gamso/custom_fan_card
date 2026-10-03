@@ -8,8 +8,10 @@ import {
   CustomFanCardConfig,
   ResolvedEntities,
   TIMER_OPTIONS_MIN,
-  SPEED_COUNT,
+  DEFAULT_SPEED_COUNT,
   percentageToSpeed,
+  speedCount,
+  speedToCommandPercentage,
   speedToPercentage,
   resolveEntities,
   fanSupportsDirection,
@@ -49,8 +51,11 @@ class CustomFanCard extends LitElement {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  private _t(key: Parameters<typeof localize>[1]): string {
-    return localize(this.hass, key);
+  private _t(
+    key: Parameters<typeof localize>[1],
+    params?: Parameters<typeof localize>[2],
+  ): string {
+    return localize(this.hass, key, params);
   }
 
   private get _entities(): ResolvedEntities {
@@ -76,7 +81,12 @@ class CustomFanCard extends LitElement {
   private get _currentSpeed(): number {
     const fan = this._fanState;
     if (!fan || fan.state === "off" || fan.state === "unavailable") return 0;
-    return percentageToSpeed(Number(fan.attributes?.percentage ?? 0));
+    return percentageToSpeed(Number(fan.attributes?.percentage ?? 0), this._speedCount);
+  }
+
+  // Number of segments of the speed bar, derived from percentage_step.
+  private get _speedCount(): number {
+    return speedCount(this._fanState);
   }
 
   private get _fanSupportsDirection(): boolean {
@@ -195,13 +205,21 @@ class CustomFanCard extends LitElement {
     return this._timerValue !== "" && this._timerValue !== none;
   }
 
-  private _speedStateKey(speed: number): Parameters<typeof localize>[1] {
-    if (speed === 0) return "speed.state_off";
-    return `speed.state_s${speed}` as Parameters<typeof localize>[1];
+  // The named labels (Gentle … Turbo) were written for 6-speed fans; any other
+  // speed count gets a plain numbered label.
+  private _speedStateLabel(speed: number): string {
+    if (speed === 0) return this._t("speed.state_off");
+    if (this._speedCount !== DEFAULT_SPEED_COUNT) {
+      return this._t("speed.state_generic", { speed });
+    }
+    return this._t(`speed.state_s${speed}` as Parameters<typeof localize>[1]);
   }
 
-  private _speedLabelKey(speed: number): Parameters<typeof localize>[1] {
-    return `speed.s${speed}` as Parameters<typeof localize>[1];
+  private _speedLabel(speed: number): string {
+    if (this._speedCount !== DEFAULT_SPEED_COUNT) {
+      return this._t("speed.generic", { speed });
+    }
+    return this._t(`speed.s${speed}` as Parameters<typeof localize>[1]);
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────────
@@ -212,7 +230,7 @@ class CustomFanCard extends LitElement {
     } else {
       this.hass.callService("fan", "set_percentage", {
         entity_id: this._entities.fan,
-        percentage: speedToPercentage(speed),
+        percentage: speedToCommandPercentage(speed, this._speedCount),
       });
     }
   }
@@ -281,9 +299,12 @@ class CustomFanCard extends LitElement {
   private _renderSpeedIcon(speed: number) {
     const animDurations = ["none", "2.5s", "1.5s", "0.9s", "0.6s", "0.35s", "0.15s"];
     const isOff = speed === 0;
+    // Scale the speed onto the 6-step animation table so any speed count spins
+    // from slow to fast (identity mapping on 6-speed fans).
+    const step = Math.max(1, Math.round((speed * DEFAULT_SPEED_COUNT) / this._speedCount));
     const iconStyle = isOff
       ? ""
-      : `animation: spin ${animDurations[speed]} linear infinite;`;
+      : `animation: spin ${animDurations[step]} linear infinite;`;
     return html`
       <div class="fan-icon-wrap ${isOff ? "off" : ""}">
         <svg
@@ -340,14 +361,14 @@ class CustomFanCard extends LitElement {
                 <div class="fan-state">
                   ${this._activePreset
                     ? this._formatPreset(this._activePreset)
-                    : this._t(this._speedStateKey(speed))}
+                    : this._speedStateLabel(speed)}
                 </div>
                 <div class="fan-pct">
                   ${!this._isOn
                     ? "—"
                     : this._activePreset
                     ? this._t("controls.preset")
-                    : `${speedToPercentage(speed)}%`}
+                    : `${speedToPercentage(speed, this._speedCount)}%`}
                 </div>
               </div>
             </div>
@@ -402,13 +423,13 @@ class CustomFanCard extends LitElement {
           </div>
 
           <div class="speed-bar">
-            ${Array.from({ length: SPEED_COUNT }, (_, i) => i + 1).map(
+            ${Array.from({ length: this._speedCount }, (_, i) => i + 1).map(
               (s) => html`
                 <button
                   class="speed-seg ${speed >= s && speed > 0 ? "filled" : ""} ${speed === s ? "active" : ""}"
                   @click=${() => this._setSpeed(s)}
                   ?disabled=${isUnavailable}
-                  aria-label="${this._t(this._speedLabelKey(s))}"
+                  aria-label="${this._speedLabel(s)}"
                   aria-pressed=${speed === s}
                 >
                   <span class="speed-seg-fill"></span>

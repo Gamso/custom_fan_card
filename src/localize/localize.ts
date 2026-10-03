@@ -29,10 +29,16 @@ function get(dict: Widen<typeof en>, key: TranslationKey): string | undefined {
     : undefined;
 }
 
-export function localize(hass: HomeAssistant | undefined, key: TranslationKey): string {
-  return (
+export function localize(
+  hass: HomeAssistant | undefined,
+  key: TranslationKey,
+  params: Record<string, string | number> = {},
+): string {
+  const text =
     get(translations[resolveLang(hass)], key) ??
     get(translations.en, key) ??
-    key
+    key;
+  return text.replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in params ? String(params[name]) : match,
   );
 }
