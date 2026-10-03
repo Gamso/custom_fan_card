@@ -3,7 +3,7 @@
     "name_default": "Ceiling fan",
     "subtitle": "Connected fan",
     "unavailable": "Unavailable",
-    "config_required": "Please configure the fan card."
+    "entity_not_found": "Entity {entity} not found"
   },
   "speed": {
     "label": "SPEED",
