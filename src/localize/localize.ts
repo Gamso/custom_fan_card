@@ -1,3 +1,4 @@
+import type { HomeAssistant } from "../ha-types";
 import en from "./en.json";
 import fr from "./fr.json";
 
@@ -12,7 +13,7 @@ type Widen<T> = {
 };
 const translations: Record<string, Widen<typeof en>> = { en, fr };
 
-function resolveLang(hass: any): string {
+function resolveLang(hass: HomeAssistant | undefined): string {
   const lang: string = hass?.locale?.language ?? hass?.language ?? "en";
   const base = lang.toLowerCase().split("-")[0];
   return base in translations ? base : "en";
@@ -28,10 +29,16 @@ function get(dict: Widen<typeof en>, key: TranslationKey): string | undefined {
     : undefined;
 }
 
-export function localize(hass: any, key: TranslationKey): string {
-  return (
+export function localize(
+  hass: HomeAssistant | undefined,
+  key: TranslationKey,
+  params: Record<string, string | number> = {},
+): string {
+  const text =
     get(translations[resolveLang(hass)], key) ??
     get(translations.en, key) ??
-    key
+    key;
+  return text.replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in params ? String(params[name]) : match,
   );
 }

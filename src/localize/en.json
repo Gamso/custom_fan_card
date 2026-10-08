@@ -3,7 +3,7 @@
     "name_default": "Ceiling fan",
     "subtitle": "Connected fan",
     "unavailable": "Unavailable",
-    "config_required": "Please configure the fan card."
+    "entity_not_found": "Entity {entity} not found"
   },
   "speed": {
     "label": "SPEED",
@@ -15,12 +15,15 @@
     "s5": "Strong",
     "s6": "Turbo",
     "state_off": "Off",
+    "state_on": "On",
     "state_s1": "Speed 1 — Gentle",
     "state_s2": "Speed 2 — Soft",
     "state_s3": "Speed 3 — Moderate",
     "state_s4": "Speed 4 — Normal",
     "state_s5": "Speed 5 — Strong",
-    "state_s6": "Speed 6 — Turbo"
+    "state_s6": "Speed 6 — Turbo",
+    "generic": "Speed {speed}",
+    "state_generic": "Speed {speed}"
   },
   "controls": {
     "light": "Light",
@@ -34,7 +37,8 @@
     "timer_none": "None",
     "sound": "Sound beep",
     "preset": "Preset mode",
-    "power": "Power"
+    "power": "Power",
+    "oscillate": "Oscillation"
   },
   "editor": {
     "title": "Fan card settings",
@@ -45,6 +49,11 @@
     "dir_forward": "Normal",
     "dir_reverse": "Reverse",
     "discovered": "Auto-discovered entities",
-    "not_found": "not found"
+    "not_found": "not found",
+    "light_entity": "Light entity (optional)",
+    "light_independent": "Light works while the fan is off",
+    "timer_entity": "Timer entity (optional)",
+    "sound_entity": "Beep switch (optional)",
+    "ambiguous": "several matches, pick one above"
   }
 }

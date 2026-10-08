@@ -1,38 +1,67 @@
-import { LitElement, html, css, nothing } from "lit";
+import { LitElement, html, css, nothing, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import "./custom-fan-card-editor";
+import type { HassEntity, HomeAssistant } from "./ha-types";
 import { localize } from "./localize/localize";
 import {
   CustomFanCardConfig,
   ResolvedEntities,
   TIMER_OPTIONS_MIN,
-  SPEED_COUNT,
+  DEFAULT_SPEED_COUNT,
   percentageToSpeed,
+  speedCount,
+  speedToCommandPercentage,
   speedToPercentage,
   resolveEntities,
+  fanSupports,
   fanSupportsDirection,
+  FanFeature,
+  isFanOn,
+  isFanUnavailable,
 } from "./types";
 
 class CustomFanCard extends LitElement {
-  @property({ attribute: false }) public hass!: any;
+  @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: CustomFanCardConfig;
 
   // ── Static HA card registration ─────────────────────────────────────────────
 
-  public static getStubConfig(): CustomFanCardConfig {
-    return {
-      fan_entity: "fan.ceiling_fan_with_light",
-      show_name: true,
-    };
+  // Called by the card picker with the instance's entities: preview the first
+  // real fan rather than a hard-coded id that only exists in the devcontainer.
+  public static getStubConfig(
+    hass?: HomeAssistant,
+    entities: string[] = [],
+  ): CustomFanCardConfig {
+    const fan =
+      entities.find((id) => id.startsWith("fan.")) ??
+      Object.keys(hass?.states ?? {}).find((id) => id.startsWith("fan.")) ??
+      "fan.ceiling_fan_with_light";
+    return { fan_entity: fan, show_name: true };
   }
 
   public static getConfigElement() {
     return document.createElement("custom-fan-card-editor");
   }
 
+  // Masonry height in ~50 px units: status row (2) + control bar (1), plus the
+  // title, the speed bar and the colour-temperature row when shown.
   public getCardSize(): number {
-    return 4;
+    let size = 3;
+    if (this._config?.show_name !== false) size += 1;
+    if (!this._fanState || this._fanSupportsSpeed) size += 1;
+    if (this._showColorTemp) size += 1;
+    return size;
+  }
+
+  // Sections view: full width by default, never narrower than half, height
+  // follows the content (the temperature row comes and goes).
+  public getGridOptions(): {
+    columns: number;
+    rows: "auto";
+    min_columns: number;
+  } {
+    return { columns: 12, rows: "auto", min_columns: 6 };
   }
 
   // ── Config ──────────────────────────────────────────────────────────────────
@@ -48,38 +77,125 @@ class CustomFanCard extends LitElement {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  private _t(key: Parameters<typeof localize>[1]): string {
-    return localize(this.hass, key);
+  private _t(
+    key: Parameters<typeof localize>[1],
+    params?: Parameters<typeof localize>[2],
+  ): string {
+    return localize(this.hass, key, params);
   }
+
+  // ── Entity resolution (memoized) ────────────────────────────────────────────
+  //
+  // Discovery scans every entity id, so it runs once per config change or
+  // entity-registry change (number of entities, or a resolved entity gone) —
+  // not on each of the dozens of getter reads of a render.
+
+  private _resolved?: ResolvedEntities;
+  private _resolvedFor?: HomeAssistant["states"];
+  private _resolvedEntityCount = -1;
 
   private get _entities(): ResolvedEntities {
-    return resolveEntities(this.hass, this._config);
+    return this._resolved ?? resolveEntities(this.hass, this._config);
   }
 
-  private get _fanState(): any {
-    return this.hass?.states[this._entities.fan];
+  private _trackedIds(resolved: ResolvedEntities): string[] {
+    return [resolved.fan, resolved.light, resolved.timer, resolved.sound].filter(
+      (id): id is string => !!id,
+    );
   }
-  private get _lightState(): any {
+
+  private _needsResolve(): boolean {
+    if (!this._resolved) return true;
+    const states = this.hass?.states;
+    if (!states) return false;
+    if (states === this._resolvedFor) return false;
+    if (Object.keys(states).length !== this._resolvedEntityCount) return true;
+    return this._trackedIds(this._resolved).some((id) => !(id in states));
+  }
+
+  private _resolve(): void {
+    const states = this.hass?.states;
+    this._resolved = resolveEntities(this.hass, this._config);
+    this._resolvedFor = states;
+    this._resolvedEntityCount = states ? Object.keys(states).length : -1;
+  }
+
+  // Only re-render when something the card displays changed: the config, the
+  // language, the set of entities, or the state of one of the tracked ones.
+  protected shouldUpdate(changed: PropertyValues): boolean {
+    if (!this._config) return false;
+    if ([...changed.keys()].some((k) => k !== "hass")) return true;
+    const old = changed.get("hass") as HomeAssistant | undefined;
+    if (!old || !this.hass || !this._resolved) return true;
+    if (
+      old.language !== this.hass.language ||
+      old.locale?.language !== this.hass.locale?.language
+    ) {
+      return true;
+    }
+    if (this._needsResolve()) return true;
+    return this._trackedIds(this._resolved).some(
+      (id) => old.states?.[id] !== this.hass.states?.[id],
+    );
+  }
+
+  protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("_config") || this._needsResolve()) {
+      this._resolve();
+    } else {
+      this._resolvedFor = this.hass?.states;
+    }
+  }
+
+  private get _fanState(): HassEntity | undefined {
+    return this.hass?.states?.[this._entities.fan];
+  }
+  private get _lightState(): HassEntity | undefined {
     const id = this._entities.light;
-    return id ? this.hass?.states[id] : undefined;
+    return id ? this.hass?.states?.[id] : undefined;
   }
-  private get _timerState(): any {
+  private get _timerState(): HassEntity | undefined {
     const id = this._entities.timer;
-    return id ? this.hass?.states[id] : undefined;
+    return id ? this.hass?.states?.[id] : undefined;
   }
-  private get _soundState(): any {
+  private get _soundState(): HassEntity | undefined {
     const id = this._entities.sound;
-    return id ? this.hass?.states[id] : undefined;
+    return id ? this.hass?.states?.[id] : undefined;
   }
 
   private get _currentSpeed(): number {
     const fan = this._fanState;
-    if (!fan || fan.state === "off" || fan.state === "unavailable") return 0;
-    return percentageToSpeed(Number(fan.attributes?.percentage ?? 0));
+    if (!isFanOn(fan)) return 0;
+    return percentageToSpeed(Number(fan.attributes?.percentage ?? 0), this._speedCount);
+  }
+
+  // Number of segments of the speed bar, derived from percentage_step.
+  private get _speedCount(): number {
+    return speedCount(this._fanState);
   }
 
   private get _fanSupportsDirection(): boolean {
     return fanSupportsDirection(this._fanState);
+  }
+
+  private get _fanSupportsSpeed(): boolean {
+    return fanSupports(this._fanState, FanFeature.SET_SPEED);
+  }
+
+  private get _fanSupportsOscillate(): boolean {
+    return fanSupports(this._fanState, FanFeature.OSCILLATE);
+  }
+
+  private get _isOscillating(): boolean {
+    return this._fanState?.attributes?.oscillating === true;
+  }
+
+  private get _canTurnOn(): boolean {
+    return fanSupports(this._fanState, FanFeature.TURN_ON);
+  }
+
+  private get _canTurnOff(): boolean {
+    return fanSupports(this._fanState, FanFeature.TURN_OFF);
   }
 
   private get _fanDirection(): "forward" | "reverse" {
@@ -123,6 +239,10 @@ class CustomFanCard extends LitElement {
     );
   }
 
+  private get _showColorTemp(): boolean {
+    return !!this._lightState && this._isLightOn && this._lightSupportsColorTemp;
+  }
+
   private get _isSoundOn(): boolean {
     return this._soundState?.state === "on";
   }
@@ -131,14 +251,11 @@ class CustomFanCard extends LitElement {
   // may report percentage 0. Controls that the hardware ignores while powered
   // off (light, timer, sound, direction, preset) key off this.
   private get _isOn(): boolean {
-    const s = this._fanState?.state;
-    return s !== undefined && s !== "off" && s !== "unavailable";
+    return isFanOn(this._fanState);
   }
 
-  // FanEntityFeature.PRESET_MODE = 8
   private get _fanSupportsPreset(): boolean {
-    const features = Number(this._fanState?.attributes?.supported_features ?? 0);
-    return (features & 8) !== 0 && this._presetModes.length > 0;
+    return fanSupports(this._fanState, FanFeature.PRESET_MODE) && this._presetModes.length > 0;
   }
   private get _presetModes(): string[] {
     return this._fanState?.attributes?.preset_modes ?? [];
@@ -180,6 +297,17 @@ class CustomFanCard extends LitElement {
     return TIMER_OPTIONS_MIN.map(String);
   }
 
+  // Options rendered in the timer select: the entity's current value is added
+  // when it is not one of the presets (e.g. a number timer set to 45 min
+  // elsewhere), so the select never falls back to showing "None".
+  private get _timerChoices(): string[] {
+    const options = this._timerOptions;
+    const value = this._timerValue;
+    if (value === "" || options.includes(value)) return options;
+    if (this._timerDomain === "select") return [...options, value];
+    return [...options, value].sort((a, b) => Number(a) - Number(b));
+  }
+
   private _formatTimerOption(raw: string): string {
     const n = Number(raw);
     if (raw.trim() === "" || Number.isNaN(n)) return raw;
@@ -194,43 +322,78 @@ class CustomFanCard extends LitElement {
     return this._timerValue !== "" && this._timerValue !== none;
   }
 
-  private _speedStateKey(speed: number): Parameters<typeof localize>[1] {
-    if (speed === 0) return "speed.state_off";
-    return `speed.state_s${speed}` as Parameters<typeof localize>[1];
+  // The named labels (Gentle … Turbo) were written for 6-speed fans; any other
+  // speed count gets a plain numbered label.
+  private _speedStateLabel(speed: number): string {
+    // A fan without SET_SPEED has no speed to name: plain on / off.
+    if (!this._fanSupportsSpeed) {
+      return this._t(this._isOn ? "speed.state_on" : "speed.state_off");
+    }
+    if (speed === 0) return this._t("speed.state_off");
+    if (this._speedCount !== DEFAULT_SPEED_COUNT) {
+      return this._t("speed.state_generic", { speed });
+    }
+    return this._t(`speed.state_s${speed}` as Parameters<typeof localize>[1]);
   }
 
-  private _speedLabelKey(speed: number): Parameters<typeof localize>[1] {
-    return `speed.s${speed}` as Parameters<typeof localize>[1];
+  private _speedLabel(speed: number): string {
+    if (this._speedCount !== DEFAULT_SPEED_COUNT) {
+      return this._t("speed.generic", { speed });
+    }
+    return this._t(`speed.s${speed}` as Parameters<typeof localize>[1]);
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
+  // Every service call goes through here: a rejected call (unsupported
+  // service, device offline, validation error) is logged once instead of
+  // surfacing as an "Uncaught (in promise)", and the card re-renders so
+  // controls bound with live() snap back to the entity's real state.
+  private _call(domain: string, service: string, data: Record<string, unknown>): void {
+    const fail = (err: unknown) => {
+      console.error(`custom-fan-card: ${domain}.${service} failed`, err);
+      this.requestUpdate();
+    };
+    try {
+      Promise.resolve(this.hass.callService(domain, service, data)).catch(fail);
+    } catch (err) {
+      fail(err);
+    }
+  }
+
   private _setSpeed(speed: number): void {
     if (speed === 0) {
-      this.hass.callService("fan", "turn_off", { entity_id: this._entities.fan });
+      this._call("fan", "turn_off", { entity_id: this._entities.fan });
     } else {
-      this.hass.callService("fan", "set_percentage", {
+      this._call("fan", "set_percentage", {
         entity_id: this._entities.fan,
-        percentage: speedToPercentage(speed),
+        percentage: speedToCommandPercentage(speed, this._speedCount),
       });
     }
   }
 
   private _togglePower(): void {
-    this.hass.callService("fan", this._isOn ? "turn_off" : "turn_on", {
+    this._call("fan", this._isOn ? "turn_off" : "turn_on", {
       entity_id: this._entities.fan,
     });
   }
 
+  private _toggleOscillate(): void {
+    this._call("fan", "oscillate", {
+      entity_id: this._entities.fan,
+      oscillating: !this._isOscillating,
+    });
+  }
+
   private _setPreset(ev: Event): void {
-    this.hass.callService("fan", "set_preset_mode", {
+    this._call("fan", "set_preset_mode", {
       entity_id: this._entities.fan,
       preset_mode: (ev.target as HTMLSelectElement).value,
     });
   }
 
   private _setDirection(direction: "forward" | "reverse"): void {
-    this.hass.callService("fan", "set_direction", {
+    this._call("fan", "set_direction", {
       entity_id: this._entities.fan,
       direction,
     });
@@ -242,13 +405,13 @@ class CustomFanCard extends LitElement {
 
   private _toggleLight(): void {
     if (!this._entities.light) return;
-    this.hass.callService("light", "toggle", { entity_id: this._entities.light });
+    this._call("light", "toggle", { entity_id: this._entities.light });
   }
 
   private _setColorTemp(ev: Event): void {
     if (!this._entities.light) return;
     const kelvin = Number((ev.target as HTMLInputElement).value);
-    this.hass.callService("light", "turn_on", {
+    this._call("light", "turn_on", {
       entity_id: this._entities.light,
       color_temp_kelvin: kelvin,
     });
@@ -258,12 +421,12 @@ class CustomFanCard extends LitElement {
     if (!this._entities.timer) return;
     const value = (ev.target as HTMLSelectElement).value;
     if (this._timerDomain === "select") {
-      this.hass.callService("select", "select_option", {
+      this._call("select", "select_option", {
         entity_id: this._entities.timer,
         option: value,
       });
     } else {
-      this.hass.callService("number", "set_value", {
+      this._call("number", "set_value", {
         entity_id: this._entities.timer,
         value: Number(value),
       });
@@ -272,17 +435,24 @@ class CustomFanCard extends LitElement {
 
   private _toggleSound(): void {
     if (!this._entities.sound) return;
-    this.hass.callService("switch", "toggle", { entity_id: this._entities.sound });
+    this._call("switch", "toggle", { entity_id: this._entities.sound });
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
   private _renderSpeedIcon(speed: number) {
     const animDurations = ["none", "2.5s", "1.5s", "0.9s", "0.6s", "0.35s", "0.15s"];
-    const isOff = speed === 0;
+    // A fan without SET_SPEED has no percentage: spin at a medium pace when on.
+    const onOffOnly = !this._fanSupportsSpeed && this._isOn;
+    const isOff = speed === 0 && !onOffOnly;
+    // Scale the speed onto the 6-step animation table so any speed count spins
+    // from slow to fast (identity mapping on 6-speed fans).
+    const step = onOffOnly
+      ? 3
+      : Math.max(1, Math.round((speed * DEFAULT_SPEED_COUNT) / this._speedCount));
     const iconStyle = isOff
       ? ""
-      : `animation: spin ${animDurations[speed]} linear infinite;`;
+      : `animation: spin ${animDurations[step]} linear infinite;`;
     return html`
       <div class="fan-icon-wrap ${isOff ? "off" : ""}">
         <svg
@@ -306,11 +476,22 @@ class CustomFanCard extends LitElement {
 
     const fan = this._fanState;
     if (!fan) {
-      return html`<ha-card><div class="error">${this._t("card.config_required")}</div></ha-card>`;
+      // The config is valid; the entity just does not exist (renamed, removed,
+      // integration not loaded yet): say which one instead of "configure me".
+      return html`<ha-card>
+        <div class="error" role="alert">
+          ${this._t("card.entity_not_found", { entity: this._config.fan_entity })}
+        </div>
+      </ha-card>`;
     }
 
     const speed = this._currentSpeed;
-    const isUnavailable = fan.state === "unavailable";
+    const isUnavailable = isFanUnavailable(fan);
+    // The light follows the fan unless configured as independent, in which
+    // case only the light's own availability matters.
+    const lightDisabled = this._config.light_independent
+      ? isFanUnavailable(this._lightState)
+      : isUnavailable || !this._isOn;
     const cardName =
       this._config.name ||
       fan.attributes?.friendly_name ||
@@ -339,14 +520,14 @@ class CustomFanCard extends LitElement {
                 <div class="fan-state">
                   ${this._activePreset
                     ? this._formatPreset(this._activePreset)
-                    : this._t(this._speedStateKey(speed))}
+                    : this._speedStateLabel(speed)}
                 </div>
                 <div class="fan-pct">
-                  ${!this._isOn
+                  ${!this._isOn || !this._fanSupportsSpeed
                     ? "—"
                     : this._activePreset
                     ? this._t("controls.preset")
-                    : `${speedToPercentage(speed)}%`}
+                    : `${speedToPercentage(speed, this._speedCount)}%`}
                 </div>
               </div>
             </div>
@@ -389,8 +570,11 @@ class CustomFanCard extends LitElement {
                         aria-label="${this._t("controls.preset")}"
                         title="${this._t("controls.preset")}"
                       >
+                        ${this._presetModes.includes(this._presetMode)
+                          ? nothing
+                          : html`<option value="" disabled selected>—</option>`}
                         ${this._presetModes.map(
-                          (p) => html`<option value="${p}">${this._formatPreset(p)}</option>`
+                          (p) => html`<option value="${p}" ?selected=${p === this._presetMode}>${this._formatPreset(p)}</option>`
                         )}
                       </select>
                     `
@@ -400,43 +584,66 @@ class CustomFanCard extends LitElement {
               : nothing}
           </div>
 
-          <div class="speed-bar">
-            ${Array.from({ length: SPEED_COUNT }, (_, i) => i + 1).map(
-              (s) => html`
-                <button
-                  class="speed-seg ${speed >= s && speed > 0 ? "filled" : ""} ${speed === s ? "active" : ""}"
-                  @click=${() => this._setSpeed(s)}
-                  ?disabled=${isUnavailable}
-                  aria-label="${this._t(this._speedLabelKey(s))}"
-                  aria-pressed=${speed === s}
-                >
-                  <span class="speed-seg-fill"></span>
-                  <span class="speed-seg-num">${s}</span>
-                </button>
-              `
-            )}
-          </div>
+          ${this._fanSupportsSpeed
+            ? html`
+              <div class="speed-bar">
+                ${Array.from({ length: this._speedCount }, (_, i) => i + 1).map(
+                  (s) => html`
+                    <button
+                      class="speed-seg ${speed >= s && speed > 0 ? "filled" : ""} ${speed === s ? "active" : ""}"
+                      @click=${() => this._setSpeed(s)}
+                      ?disabled=${isUnavailable}
+                      aria-label="${this._speedLabel(s)}"
+                      aria-pressed=${speed === s}
+                    >
+                      <span class="speed-seg-fill"></span>
+                      <span class="speed-seg-num">${s}</span>
+                    </button>
+                  `
+                )}
+              </div>
+            `
+            : nothing}
 
           <div class="control-bar">
-            <button
-              class="ctrl-btn power ${this._isOn ? "on" : ""}"
-              @click=${this._togglePower}
-              ?disabled=${isUnavailable}
-              aria-label="${this._t("controls.power")}"
-              title="${this._t("controls.power")}"
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                <path d="M12 4v8"/>
-                <path d="M7.8 6.8a6 6 0 1 0 8.4 0"/>
-              </svg>
-            </button>
+            ${this._canTurnOn || this._canTurnOff
+              ? html`
+                <button
+                  class="ctrl-btn power ${this._isOn ? "on" : ""}"
+                  @click=${this._togglePower}
+                  ?disabled=${isUnavailable || (this._isOn ? !this._canTurnOff : !this._canTurnOn)}
+                  aria-label="${this._t("controls.power")}"
+                  title="${this._t("controls.power")}"
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M12 4v8"/>
+                    <path d="M7.8 6.8a6 6 0 1 0 8.4 0"/>
+                  </svg>
+                </button>
+              `
+              : nothing}
+
+            ${this._fanSupportsOscillate
+              ? html`
+                <button
+                  class="ctrl-btn oscillate ${this._isOscillating ? "on" : ""}"
+                  @click=${this._toggleOscillate}
+                  ?disabled=${isUnavailable || !this._isOn}
+                  aria-label="${this._t("controls.oscillate")}"
+                  aria-pressed=${this._isOscillating}
+                  title="${this._t("controls.oscillate")}"
+                >
+                  <ha-icon icon="${this._isOscillating ? "mdi:arrow-oscillating" : "mdi:arrow-oscillating-off"}"></ha-icon>
+                </button>
+              `
+              : nothing}
 
             ${this._lightState
               ? html`
                 <button
-                  class="ctrl-btn ${this._isLightOn ? "on" : ""}"
+                  class="ctrl-btn light ${this._isLightOn ? "on" : ""}"
                   @click=${this._toggleLight}
-                  ?disabled=${isUnavailable || !this._isOn}
+                  ?disabled=${lightDisabled}
                   aria-label="${this._t("controls.light")}"
                   title="${this._t("controls.light")}"
                 >
@@ -452,7 +659,7 @@ class CustomFanCard extends LitElement {
             ${this._soundState
               ? html`
                 <button
-                  class="ctrl-btn ${this._isSoundOn ? "on" : ""}"
+                  class="ctrl-btn sound ${this._isSoundOn ? "on" : ""}"
                   @click=${this._toggleSound}
                   ?disabled=${isUnavailable || !this._isOn}
                   aria-label="${this._t("controls.sound")}"
@@ -473,9 +680,9 @@ class CustomFanCard extends LitElement {
                   aria-label="${this._t("controls.timer")}"
                   title="${this._t("controls.timer")}"
                 >
-                  ${this._timerOptions.map(
+                  ${this._timerChoices.map(
                     (opt) => html`
-                      <option value="${opt}">${this._formatTimerOption(opt)}</option>
+                      <option value="${opt}" ?selected=${opt === this._timerValue}>${this._formatTimerOption(opt)}</option>
                     `
                   )}
                 </select>
@@ -483,7 +690,7 @@ class CustomFanCard extends LitElement {
               : nothing}
           </div>
 
-          ${this._lightState && this._isLightOn && this._lightSupportsColorTemp
+          ${this._showColorTemp
             ? html`
               <div class="temp-row">
                 <div class="temp-divider"></div>
@@ -495,9 +702,9 @@ class CustomFanCard extends LitElement {
                     min="${this._minKelvin}"
                     max="${this._maxKelvin}"
                     step="100"
-                    .value=${String(this._currentKelvin)}
+                    .value=${live(String(this._currentKelvin))}
                     @change=${this._setColorTemp}
-                    ?disabled=${isUnavailable}
+                    ?disabled=${this._config.light_independent ? lightDisabled : isUnavailable}
                     aria-label="${this._t("controls.color_temp")}"
                   />
                   <span class="temp-label cool">${this._t("controls.temp_cool")}</span>
@@ -513,14 +720,41 @@ class CustomFanCard extends LitElement {
   }
 
   static styles = css`
+    /* Every colour derives from the HA theme, so light and dark themes (and
+       custom themes) both render correctly. Mixing with --primary-text-color
+       darkens a tint on light themes and lightens it on dark ones, keeping
+       text readable on either. The hex values are fallbacks only. */
     :host {
-      --wc-accent: #378add;
-      --wc-accent-light: #e6f1fb;
-      --wc-accent-dark: #0c447c;
-      --wc-accent-mid: #185fa5;
-      --wc-red-light: #fcebeb;
-      --wc-red: #e24b4a;
-      --wc-red-dark: #a32d2d;
+      --wc-accent: var(--custom-fan-card-accent, var(--primary-color, #378add));
+      --wc-on-accent: var(--text-primary-color, #fff);
+      --wc-accent-light: color-mix(
+        in srgb,
+        var(--wc-accent) 18%,
+        var(--card-background-color, #fff)
+      );
+      --wc-accent-dark: color-mix(
+        in srgb,
+        var(--wc-accent) 65%,
+        var(--primary-text-color, #212121)
+      );
+      --wc-summer: var(--custom-fan-card-summer, var(--orange-color, #e0912f));
+      --wc-warm-text: color-mix(
+        in srgb,
+        var(--wc-summer) 75%,
+        var(--primary-text-color, #212121)
+      );
+      --wc-cool-text: color-mix(
+        in srgb,
+        var(--wc-accent) 75%,
+        var(--primary-text-color, #212121)
+      );
+      --wc-focus-ring: 2px solid var(--wc-accent);
+    }
+
+    button:focus-visible,
+    .temp-slider:focus-visible {
+      outline: var(--wc-focus-ring);
+      outline-offset: 2px;
     }
 
     ha-card {
@@ -606,12 +840,12 @@ class CustomFanCard extends LitElement {
       color: var(--primary-text-color);
     }
     .season-btn.summer.active {
-      background: #e0912f;
-      color: #fff;
+      background: var(--wc-summer);
+      color: var(--wc-on-accent);
     }
     .season-btn.winter.active {
       background: var(--wc-accent);
-      color: #fff;
+      color: var(--wc-on-accent);
     }
     .season-btn ha-icon {
       --mdc-icon-size: 20px;
@@ -635,12 +869,12 @@ class CustomFanCard extends LitElement {
       border-color: var(--wc-accent);
     }
     .preset-select:focus-visible {
-      box-shadow: 0 0 0 2px var(--wc-accent-light);
+      box-shadow: 0 0 0 2px var(--wc-accent);
     }
     .preset-select.active {
       border-color: var(--wc-accent);
       background: var(--wc-accent);
-      color: #fff;
+      color: var(--wc-on-accent);
     }
     .preset-select:disabled {
       cursor: default;
@@ -680,6 +914,14 @@ class CustomFanCard extends LitElement {
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
+    }
+
+    /* The spin is set inline per speed; !important lets the user's
+       reduced-motion preference win over it. */
+    @media (prefers-reduced-motion: reduce) {
+      .fan-svg {
+        animation: none !important;
+      }
     }
 
     .fan-info { min-width: 0; }
@@ -814,12 +1056,12 @@ class CustomFanCard extends LitElement {
       border-color: var(--wc-accent);
     }
     .ctrl-select:focus-visible {
-      box-shadow: 0 0 0 2px var(--wc-accent-light);
+      box-shadow: 0 0 0 2px var(--wc-accent);
     }
     .ctrl-select.active {
       border-color: var(--wc-accent);
       background: var(--wc-accent);
-      color: #fff;
+      color: var(--wc-on-accent);
     }
     .ctrl-select:disabled {
       cursor: default;
@@ -844,10 +1086,10 @@ class CustomFanCard extends LitElement {
       flex-shrink: 0;
     }
     .temp-label.warm {
-      color: #ba7517;
+      color: var(--wc-warm-text);
     }
     .temp-label.cool {
-      color: #378add;
+      color: var(--wc-cool-text);
     }
     .temp-value {
       font-size: 11px;
@@ -862,6 +1104,8 @@ class CustomFanCard extends LitElement {
       appearance: none;
       height: 8px;
       border-radius: 4px;
+      /* Depicts the light's colour temperature itself (warm to cool white),
+         so it is intentionally theme-independent. */
       background: linear-gradient(to right, #ffb46e, #fff6e8 50%, #cfe4ff);
       outline: none;
       cursor: pointer;
@@ -892,7 +1136,7 @@ class CustomFanCard extends LitElement {
     .error {
       padding: 16px;
       font-size: 13px;
-      color: var(--error-color, var(--wc-red));
+      color: var(--error-color, #db4437);
     }
   `;
 }

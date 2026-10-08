@@ -1,7 +1,15 @@
 import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { localize, TranslationKey } from "./localize/localize";
-import { CustomFanCardConfig, resolveEntities, fanSupportsDirection } from "./types";
+import {
+  CustomFanCardConfig,
+  ENTITY_ROLES,
+  EntityRole,
+  ResolvedEntities,
+  resolveEntities,
+  fanSupportsDirection,
+} from "./types";
+import { fireEvent, HomeAssistant } from "./ha-types";
 
 // Ensure the HA form components are registered (they ship with the frontend
 // but are only loaded on demand via other cards' config elements).
@@ -15,7 +23,7 @@ const loadHaComponents = () => {
 };
 
 class CustomFanCardEditor extends LitElement {
-  @property({ attribute: false }) public hass!: any;
+  @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: CustomFanCardConfig;
 
   public connectedCallback(): void {
@@ -27,6 +35,34 @@ class CustomFanCardEditor extends LitElement {
     this._config = { ...config };
   }
 
+  // Config key holding the explicit override of each discovered role.
+  private static readonly _ROLE_KEYS: Record<EntityRole, "light_entity" | "timer_entity" | "sound_entity"> = {
+    light: "light_entity",
+    timer: "timer_entity",
+    sound: "sound_entity",
+  };
+
+  // What auto-discovery alone would pick, ignoring the YAML overrides.
+  private get _discovered(): ResolvedEntities {
+    return resolveEntities(this.hass, {
+      ...this._config,
+      light_entity: undefined,
+      timer_entity: undefined,
+      sound_entity: undefined,
+    });
+  }
+
+  // The form shows the discovered entities pre-filled in the pickers; they are
+  // only written to the config when the user picks something else.
+  private _formData(discovered: ResolvedEntities): CustomFanCardConfig {
+    const data: CustomFanCardConfig = { ...this._config };
+    for (const role of ENTITY_ROLES) {
+      const key = CustomFanCardEditor._ROLE_KEYS[role];
+      if (!data[key] && discovered[role]) data[key] = discovered[role];
+    }
+    return data;
+  }
+
   private get _schema() {
     const schema: Record<string, unknown>[] = [
       {
@@ -36,6 +72,10 @@ class CustomFanCardEditor extends LitElement {
       },
       { name: "name", selector: { text: {} } },
       { name: "show_name", selector: { boolean: {} } },
+      { name: "light_entity", selector: { entity: { domain: "light" } } },
+      { name: "light_independent", selector: { boolean: {} } },
+      { name: "timer_entity", selector: { entity: { domain: ["number", "select"] } } },
+      { name: "sound_entity", selector: { entity: { domain: "switch" } } },
     ];
 
     const fanState = this.hass?.states?.[this._config?.fan_entity];
@@ -67,29 +107,40 @@ class CustomFanCardEditor extends LitElement {
       name: "editor.name",
       show_name: "editor.show_name",
       summer_direction: "editor.summer_direction",
+      light_entity: "editor.light_entity",
+      light_independent: "editor.light_independent",
+      timer_entity: "editor.timer_entity",
+      sound_entity: "editor.sound_entity",
     };
     return map[schema.name] ? this._t(map[schema.name]) : schema.name;
   };
 
   private _valueChanged(ev: CustomEvent): void {
-    const config = ev.detail.value;
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        bubbles: true,
-        composed: true,
-        detail: { config },
-      })
-    );
+    const config: CustomFanCardConfig = { ...ev.detail.value };
+    const discovered = this._discovered;
+    for (const role of ENTITY_ROLES) {
+      const key = CustomFanCardEditor._ROLE_KEYS[role];
+      // Keep auto-discovery (rather than freezing today's match) when the
+      // picker still shows the discovered entity or was cleared.
+      if (!config[key] || (!this._config[key] && config[key] === discovered[role])) {
+        delete config[key];
+      }
+    }
+    fireEvent(this, "config-changed", { config });
   }
 
-  private _renderDiscovered() {
+  private _renderDiscovered(discovered: ResolvedEntities) {
     if (!this._config?.fan_entity) return nothing;
-    const resolved = resolveEntities(this.hass, this._config);
-    const rows: { key: TranslationKey; id?: string }[] = [
-      { key: "controls.light", id: resolved.light },
-      { key: "controls.timer", id: resolved.timer },
-      { key: "controls.sound", id: resolved.sound },
-    ];
+    const labels: Record<EntityRole, TranslationKey> = {
+      light: "controls.light",
+      timer: "controls.timer",
+      sound: "controls.sound",
+    };
+    const rows = ENTITY_ROLES.map((role) => ({
+      key: labels[role],
+      id: discovered[role],
+      ambiguous: discovered.ambiguous[role],
+    }));
     return html`
       <div class="discovered">
         <div class="discovered-title">${this._t("editor.discovered")}</div>
@@ -99,8 +150,13 @@ class CustomFanCardEditor extends LitElement {
               <span class="dr-label">${this._t(r.key)}</span>
               ${r.id
                 ? html`<span class="dr-id found">${r.id}</span>`
+                : r.ambiguous
+                ? html`<span class="dr-id ambiguous">${this._t("editor.ambiguous")}</span>`
                 : html`<span class="dr-id missing">${this._t("editor.not_found")}</span>`}
             </div>
+            ${r.ambiguous
+              ? html`<div class="dr-candidates">${r.ambiguous.join(", ")}</div>`
+              : nothing}
           `
         )}
       </div>
@@ -109,15 +165,16 @@ class CustomFanCardEditor extends LitElement {
 
   protected render() {
     if (!this.hass || !this._config) return html``;
+    const discovered = this._discovered;
     return html`
       <ha-form
         .hass=${this.hass}
-        .data=${this._config}
+        .data=${this._formData(discovered)}
         .schema=${this._schema}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
-      ${this._renderDiscovered()}
+      ${this._renderDiscovered(discovered)}
     `;
   }
 
@@ -163,6 +220,17 @@ class CustomFanCardEditor extends LitElement {
     .dr-id.missing {
       color: var(--secondary-text-color);
       font-style: italic;
+    }
+    .dr-id.ambiguous {
+      color: var(--warning-color, #ffa600);
+      font-style: italic;
+    }
+    .dr-candidates {
+      padding: 0 0 4px;
+      font-family: var(--code-font-family, monospace);
+      font-size: 11px;
+      color: var(--secondary-text-color);
+      overflow-wrap: anywhere;
     }
   `;
 }
