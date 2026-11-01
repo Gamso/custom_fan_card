@@ -1,3 +1,5 @@
 node_modules/
-dist/*.js
+# dist/custom-fan-card.js is versioned on purpose: HACS serves it straight from
+# the repository. Sourcemaps are only emitted by `npm run watch` for local
+# debugging and must never be committed.
 dist/*.map
