@@ -75,6 +75,9 @@ fan_entity: fan.ceiling_fan_with_light
 ```yaml
 type: custom:custom-fan-card
 fan_entity: fan.ceiling_fan_with_light
+fallback_fan_entity: fan.ceiling_fan_with_light_cloud # optional — used only while fan_entity is unavailable
+speed_percentages: [17, 33, 50, 67, 83, 100] # optional — percentage of each speed of fan_entity
+fallback_speed_percentages: [1, 21, 41, 60, 80, 100] # optional — same for fallback_fan_entity
 name: Ventilateur salon # optional — defaults to the fan's friendly name
 show_name: true # optional — default: true
 summer_direction: forward # optional — default: forward. Set to "reverse" if the fan's "reverse" direction is what actually cools the room in summer.
@@ -89,6 +92,9 @@ sound_entity: switch.ceiling_fan_with_light_son # optional — overrides auto-di
 | Option              | Type    | Default           | Description                                                                       |
 | ------------------- | ------- | ----------------- | --------------------------------------------------------------------------------- |
 | `fan_entity`        | string  | **required**      | The `fan` entity to control.                                                      |
+| `fallback_fan_entity` | string | none             | Second fan (e.g. the cloud twin of a local fan), used only while `fan_entity` is `unavailable`/`unknown`. Its light, timer and beep are discovered from its own name; the `light_entity` / `timer_entity` / `sound_entity` overrides apply to `fan_entity` only. |
+| `speed_percentages` | list    | from `percentage_step` | Percentage of each speed, lowest first. The card sends these values and reads the speed as the highest one not above the fan's percentage. For fans whose reported steps do not match their real speeds (cloud integrations often report 100 steps for 6 speeds). Max 10 values, strictly increasing. |
+| `fallback_speed_percentages` | list | from `percentage_step` | Same, for `fallback_fan_entity`. |
 | `name`              | string  | fan friendly name | Card title.                                                                       |
 | `show_name`         | boolean | `true`            | Show the card title.                                                              |
 | `summer_direction`  | string  | `forward`         | Which raw direction (`forward` / `reverse`) is summer mode.                       |

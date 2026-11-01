@@ -39,6 +39,8 @@ describe("editor", () => {
     const { form } = await mountEditor({ fan_entity: "fan.f" }, IDS);
     expect(form.schema.map((s) => s.name)).toEqual([
       "fan_entity",
+      "fallback_fan_entity",
+      "speed_percentages",
       "name",
       "show_name",
       "light_entity",

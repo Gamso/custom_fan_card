@@ -85,3 +85,41 @@ describe("resolveEntities — matching order", () => {
     expect(r.ambiguous).toEqual({});
   });
 });
+
+describe("resolveEntities — fallback fan", () => {
+  const config = {
+    fan_entity: "fan.k_offline",
+    fallback_fan_entity: "fan.k_online",
+    light_entity: "light.k_offline",
+  };
+  const hass = (offline: string, online = "on") =>
+    makeHass([
+      entity("fan.k_offline", offline),
+      entity("fan.k_online", online),
+      entity("light.k_offline", "off"),
+      entity("light.k_online", "off"),
+    ]);
+
+  it("prefers the primary fan while it is available", () => {
+    const r = resolveEntities(hass("on"), config);
+    expect(r.fan).toBe("fan.k_offline");
+    expect(r.light).toBe("light.k_offline");
+  });
+
+  it("switches to the fallback, and its own light, when the primary is unavailable", () => {
+    for (const state of ["unavailable", "unknown"]) {
+      const r = resolveEntities(hass(state), config);
+      expect(r.fan).toBe("fan.k_online");
+      expect(r.light).toBe("light.k_online");
+    }
+  });
+
+  it("stays on the primary when the fallback is unavailable too", () => {
+    expect(resolveEntities(hass("unavailable", "unavailable"), config).fan).toBe("fan.k_offline");
+  });
+
+  it("ignores a fallback equal to the primary", () => {
+    const r = resolveEntities(hass("unavailable"), { ...config, fallback_fan_entity: "fan.k_offline" });
+    expect(r.fan).toBe("fan.k_offline");
+  });
+});

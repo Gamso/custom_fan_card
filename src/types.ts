@@ -4,6 +4,18 @@ export interface CustomFanCardConfig {
   name?: string;
   show_name?: boolean;
   fan_entity: string;
+  // Optional second fan entity (typically the cloud twin of a local fan). It is
+  // used, with its own light/timer/sound discovered from its name, only while
+  // fan_entity is unavailable; fan_entity always wins as soon as it is back.
+  fallback_fan_entity?: string;
+  // Percentage of each speed, lowest first (e.g. [1, 21, 41, 60, 80, 100]), for
+  // fans whose percentage_step does not describe their real speeds (cloud
+  // integrations often report 100 steps for a 6-speed fan). The card sends
+  // these values and reads a fan's speed as the highest one not above its
+  // percentage. A comma-separated string is accepted too (visual editor).
+  speed_percentages?: number[] | string;
+  // Same, for fallback_fan_entity.
+  fallback_speed_percentages?: number[] | string;
   // Which physical rotation direction ("forward"/"reverse", as reported by the
   // fan entity) corresponds to summer mode. Not every fan spins counter-clockwise
   // for summer, so this lets the user match the card's Été/Hiver buttons to the
@@ -53,6 +65,31 @@ export function speedCount(fanState: HassEntity | undefined): number {
   if (!Number.isFinite(step) || step <= 0) return DEFAULT_SPEED_COUNT;
   const count = Math.round(100 / step);
   return count >= 1 && count <= MAX_SPEED_SEGMENTS ? count : DEFAULT_SPEED_COUNT;
+}
+
+/**
+ * Validate a user-supplied list of speed percentages: strictly increasing
+ * integers in 1..100, at most MAX_SPEED_SEGMENTS of them. Anything else is
+ * ignored (undefined) so a typo falls back to the fan's own percentage_step.
+ */
+export function parseSpeedPercentages(value: unknown): number[] | undefined {
+  const raw = typeof value === "string" ? value.split(/[\s,;]+/).filter(Boolean) : value;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_SPEED_SEGMENTS) return undefined;
+  const list = raw.map(Number);
+  const valid = list.every(
+    (n, i) => Number.isInteger(n) && n >= 1 && n <= 100 && (i === 0 || n > list[i - 1]),
+  );
+  return valid ? list : undefined;
+}
+
+/** Speed (1-based, 0 = stopped) of a percentage, given the fan's own speed list. */
+export function percentageToTableSpeed(pct: number | null | undefined, table: readonly number[]): number {
+  if (!pct || pct <= 0) return 0;
+  let speed = 1;
+  table.forEach((p, i) => {
+    if (pct >= p) speed = i + 1;
+  });
+  return speed;
 }
 
 export function percentageToSpeed(
@@ -116,6 +153,22 @@ export function fanSupports(fanState: HassEntity | undefined, feature: number): 
 
 export function fanSupportsDirection(fanState: HassEntity | undefined): boolean {
   return fanSupports(fanState, FanFeature.DIRECTION);
+}
+
+/**
+ * Fan entity the card controls: the primary one, unless it is unavailable and
+ * a fallback fan is configured and available.
+ */
+export function activeFanEntity(
+  hass: HomeAssistant | undefined,
+  config: Pick<CustomFanCardConfig, "fan_entity" | "fallback_fan_entity">,
+): string {
+  const fallback = config.fallback_fan_entity;
+  if (!fallback || fallback === config.fan_entity) return config.fan_entity;
+  const primary = hass?.states?.[config.fan_entity];
+  const second = hass?.states?.[fallback];
+  if (primary && !isFanUnavailable(primary)) return config.fan_entity;
+  return second && !isFanUnavailable(second) ? fallback : config.fan_entity;
 }
 
 /**
@@ -234,6 +287,18 @@ export function resolveEntities(
   hass: HomeAssistant | undefined,
   config: CustomFanCardConfig,
 ): ResolvedEntities {
+  const active = activeFanEntity(hass, config);
+  if (active !== config.fan_entity) {
+    // Running on the fallback fan: the explicit overrides describe the primary
+    // device, so everything is discovered from the fallback's own name.
+    config = {
+      ...config,
+      fan_entity: active,
+      light_entity: undefined,
+      timer_entity: undefined,
+      sound_entity: undefined,
+    };
+  }
   const base = fanBaseName(config.fan_entity);
   const ids = Object.keys(hass?.states ?? {});
   const otherFanBases = ids

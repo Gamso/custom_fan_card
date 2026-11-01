@@ -46,6 +46,7 @@ class CustomFanCardEditor extends LitElement {
   private get _discovered(): ResolvedEntities {
     return resolveEntities(this.hass, {
       ...this._config,
+      fallback_fan_entity: undefined,
       light_entity: undefined,
       timer_entity: undefined,
       sound_entity: undefined,
@@ -56,6 +57,10 @@ class CustomFanCardEditor extends LitElement {
   // only written to the config when the user picks something else.
   private _formData(discovered: ResolvedEntities): CustomFanCardConfig {
     const data: CustomFanCardConfig = { ...this._config };
+    // The speed lists are edited as comma-separated text.
+    for (const key of ["speed_percentages", "fallback_speed_percentages"] as const) {
+      if (Array.isArray(data[key])) data[key] = data[key].join(", ");
+    }
     for (const role of ENTITY_ROLES) {
       const key = CustomFanCardEditor._ROLE_KEYS[role];
       if (!data[key] && discovered[role]) data[key] = discovered[role];
@@ -70,6 +75,8 @@ class CustomFanCardEditor extends LitElement {
         required: true,
         selector: { entity: { domain: "fan" } },
       },
+      { name: "fallback_fan_entity", selector: { entity: { domain: "fan" } } },
+      { name: "speed_percentages", selector: { text: {} } },
       { name: "name", selector: { text: {} } },
       { name: "show_name", selector: { boolean: {} } },
       { name: "light_entity", selector: { entity: { domain: "light" } } },
@@ -77,6 +84,11 @@ class CustomFanCardEditor extends LitElement {
       { name: "timer_entity", selector: { entity: { domain: ["number", "select"] } } },
       { name: "sound_entity", selector: { entity: { domain: "switch" } } },
     ];
+
+    if (this._config?.fallback_fan_entity) {
+      // Right after the fallback picker, where it is relevant.
+      schema.splice(2, 0, { name: "fallback_speed_percentages", selector: { text: {} } });
+    }
 
     const fanState = this.hass?.states?.[this._config?.fan_entity];
     if (fanSupportsDirection(fanState)) {
@@ -104,6 +116,9 @@ class CustomFanCardEditor extends LitElement {
   private _computeLabel = (schema: { name: string }): string => {
     const map: Record<string, TranslationKey> = {
       fan_entity: "editor.fan_entity",
+      fallback_fan_entity: "editor.fallback_fan_entity",
+      speed_percentages: "editor.speed_percentages",
+      fallback_speed_percentages: "editor.fallback_speed_percentages",
       name: "editor.name",
       show_name: "editor.show_name",
       summer_direction: "editor.summer_direction",
@@ -117,6 +132,13 @@ class CustomFanCardEditor extends LitElement {
 
   private _valueChanged(ev: CustomEvent): void {
     const config: CustomFanCardConfig = { ...ev.detail.value };
+    if (!config.fallback_fan_entity) {
+      delete config.fallback_fan_entity;
+      delete config.fallback_speed_percentages;
+    }
+    for (const key of ["speed_percentages", "fallback_speed_percentages"] as const) {
+      if (!config[key]) delete config[key];
+    }
     const discovered = this._discovered;
     for (const role of ENTITY_ROLES) {
       const key = CustomFanCardEditor._ROLE_KEYS[role];

@@ -11,9 +11,12 @@ import {
   DEFAULT_SPEED_COUNT,
   percentageToSpeed,
   speedCount,
+  parseSpeedPercentages,
+  percentageToTableSpeed,
   speedToCommandPercentage,
   speedToPercentage,
   resolveEntities,
+  activeFanEntity,
   fanSupports,
   fanSupportsDirection,
   FanFeature,
@@ -99,9 +102,16 @@ class CustomFanCard extends LitElement {
   }
 
   private _trackedIds(resolved: ResolvedEntities): string[] {
-    return [resolved.fan, resolved.light, resolved.timer, resolved.sound].filter(
-      (id): id is string => !!id,
-    );
+    // Both fans are tracked: the primary coming back must trigger a re-render
+    // even while the card is showing the fallback.
+    return [
+      resolved.fan,
+      this._config.fan_entity,
+      this._config.fallback_fan_entity,
+      resolved.light,
+      resolved.timer,
+      resolved.sound,
+    ].filter((id): id is string => !!id);
   }
 
   private _needsResolve(): boolean {
@@ -110,6 +120,7 @@ class CustomFanCard extends LitElement {
     if (!states) return false;
     if (states === this._resolvedFor) return false;
     if (Object.keys(states).length !== this._resolvedEntityCount) return true;
+    if (activeFanEntity(this.hass, this._config) !== this._resolved.fan) return true;
     return this._trackedIds(this._resolved).some((id) => !(id in states));
   }
 
@@ -166,12 +177,23 @@ class CustomFanCard extends LitElement {
   private get _currentSpeed(): number {
     const fan = this._fanState;
     if (!isFanOn(fan)) return 0;
-    return percentageToSpeed(Number(fan.attributes?.percentage ?? 0), this._speedCount);
+    const pct = Number(fan.attributes?.percentage ?? 0);
+    const table = this._speedTable;
+    return table ? percentageToTableSpeed(pct, table) : percentageToSpeed(pct, this._speedCount);
+  }
+
+  // User-defined percentage of each speed for the fan currently in use.
+  private get _speedTable(): number[] | undefined {
+    const onFallback =
+      !!this._config.fallback_fan_entity && this._entities.fan === this._config.fallback_fan_entity;
+    return parseSpeedPercentages(
+      onFallback ? this._config.fallback_speed_percentages : this._config.speed_percentages,
+    );
   }
 
   // Number of segments of the speed bar, derived from percentage_step.
   private get _speedCount(): number {
-    return speedCount(this._fanState);
+    return this._speedTable?.length ?? speedCount(this._fanState);
   }
 
   private get _fanSupportsDirection(): boolean {
@@ -367,7 +389,7 @@ class CustomFanCard extends LitElement {
     } else {
       this._call("fan", "set_percentage", {
         entity_id: this._entities.fan,
-        percentage: speedToCommandPercentage(speed, this._speedCount),
+        percentage: this._speedTable?.[speed - 1] ?? speedToCommandPercentage(speed, this._speedCount),
       });
     }
   }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { $, entity, makeHass, mountCard } from "./helpers";
+import { $, $$, entity, makeHass, mountCard } from "./helpers";
 
 const FAN = "fan.f";
 const fan = (attributes: Record<string, unknown> = {}) =>
@@ -112,5 +112,37 @@ describe("service calls (audit B6, B7)", () => {
       color_temp_kelvin: 5000,
     });
     await vi.waitFor(() => expect(slider.value).toBe("3000"));
+  });
+});
+
+describe("fallback fan with its own speed percentages", () => {
+  const config = {
+    fan_entity: "fan.off",
+    fallback_fan_entity: "fan.on",
+    fallback_speed_percentages: "1, 21, 41, 60, 80, 100",
+  };
+  const cloud = (percentage: number) =>
+    entity("fan.on", "on", { supported_features: 1 | 32 | 16, percentage, percentage_step: 1 });
+  const local = entity("fan.off", "unavailable", { supported_features: 1 | 32 | 16 });
+
+  it("reads and sends the fallback's own percentages", async () => {
+    const hass = makeHass([local, cloud(41)]);
+    const el = await mountCard(config, hass);
+    expect($$(el, ".speed-seg")).toHaveLength(6);
+    expect($(el, ".speed-seg.active")?.textContent?.trim()).toBe("3");
+    $$(el, ".speed-seg")[1].click();
+    expect(hass.callService).toHaveBeenCalledWith("fan", "set_percentage", {
+      entity_id: "fan.on",
+      percentage: 21,
+    });
+  });
+
+  it("ignores them while the primary fan is in use", async () => {
+    const hass = makeHass([
+      entity("fan.off", "on", { supported_features: 1 | 32 | 16, percentage: 33, percentage_step: 16.67 }),
+      cloud(41),
+    ]);
+    const el = await mountCard(config, hass);
+    expect($(el, ".speed-seg.active")?.textContent?.trim()).toBe("2");
   });
 });

@@ -155,3 +155,26 @@ describe("resolveEntities", () => {
     );
   });
 });
+
+import { parseSpeedPercentages, percentageToTableSpeed } from "../src/types";
+
+describe("custom speed percentages", () => {
+  const table = [1, 21, 41, 60, 80, 100];
+
+  it("accepts lists and comma-separated text", () => {
+    expect(parseSpeedPercentages(table)).toEqual(table);
+    expect(parseSpeedPercentages("1, 21 41;60,80 ,100")).toEqual(table);
+  });
+
+  it("rejects invalid lists", () => {
+    for (const bad of ["", "1, x", [3, 2], [0, 5], [10, 200], [], undefined, "1,1"]) {
+      expect(parseSpeedPercentages(bad)).toBeUndefined();
+    }
+  });
+
+  it("maps a percentage to the highest speed not above it", () => {
+    expect([0, 1, 20, 21, 59, 60, 79, 80, 100].map((p) => percentageToTableSpeed(p, table))).toEqual(
+      [0, 1, 1, 2, 3, 4, 4, 5, 6],
+    );
+  });
+});
