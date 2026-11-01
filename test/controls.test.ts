@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { $, $$, entity, makeHass, mountCard } from "./helpers";
+import { $, $$, entity, makeHass, mountCard, openTempPanel } from "./helpers";
 
 const FAN = "fan.f";
 const fan = (attributes: Record<string, unknown> = {}) =>
@@ -103,6 +103,7 @@ describe("service calls (audit B6, B7)", () => {
     ]);
     hass.callService.mockRejectedValue(new Error("offline"));
     const el = await mountCard({ fan_entity: FAN }, hass);
+    await openTempPanel(el);
     const slider = $(el, ".temp-slider") as HTMLInputElement;
     expect(slider.value).toBe("3000");
     slider.value = "5000";
@@ -144,5 +145,47 @@ describe("fallback fan with its own speed percentages", () => {
     ]);
     const el = await mountCard(config, hass);
     expect($(el, ".speed-seg.active")?.textContent?.trim()).toBe("2");
+  });
+});
+
+describe("dial", () => {
+  const sixSpeed = () =>
+    makeHass([entity(FAN, "on", { supported_features: 1 | 16 | 32, percentage: 50, percentage_step: 100 / 6 })]);
+
+  const tap = (el: HTMLElement, xFrac: number, yFrac: number) => {
+    const hit = $(el, ".hit") as unknown as SVGGraphicsElement;
+    const svg = hit.ownerSVGElement as SVGSVGElement;
+    svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 300, height: 276, right: 300, bottom: 276, x: 0, y: 0, toJSON: () => ({}) });
+    hit.dispatchEvent(new MouseEvent("click", { clientX: xFrac * 300, clientY: yFrac * 276, bubbles: true }));
+  };
+
+  it("sets the speed from the tapped angle", async () => {
+    const hass = sixSpeed();
+    const el = await mountCard({ fan_entity: FAN }, hass);
+    // Right end of the arc (about 45° below the horizontal) is the top speed.
+    tap(el, 0.5 + 0.28, 0.54 + 0.28);
+    expect(hass.callService).toHaveBeenCalledWith("fan", "set_percentage", { entity_id: FAN, percentage: 100 });
+  });
+
+  it("keeps the colour-temperature slider collapsed until asked for", async () => {
+    const hass = makeHass([
+      entity(FAN, "on", { supported_features: 1 | 16 | 32, percentage: 50 }),
+      entity("light.f", "on", { supported_color_modes: ["color_temp"], color_temp_kelvin: 3000 }),
+    ]);
+    const el = await mountCard({ fan_entity: FAN }, hass);
+    expect($(el, ".temp-slider")).toBeNull();
+    await openTempPanel(el);
+    expect($(el, ".temp-slider")).not.toBeNull();
+  });
+
+  it("flags the backup fan with a badge", async () => {
+    const hass = makeHass([
+      entity("fan.a", "unavailable", { supported_features: 1 | 16 | 32 }),
+      entity("fan.b", "on", { supported_features: 1 | 16 | 32, percentage: 50 }),
+    ]);
+    const el = await mountCard({ fan_entity: "fan.a", fallback_fan_entity: "fan.b" }, hass);
+    expect($(el, ".badge")?.textContent?.trim()).toBe("Backup");
+    const primary = await mountCard({ fan_entity: "fan.b", fallback_fan_entity: "fan.a" }, hass);
+    expect($(primary, ".badge")).toBeNull();
   });
 });

@@ -3,7 +3,8 @@
     "name_default": "Ventilateur plafond",
     "subtitle": "Ventilateur connecté",
     "unavailable": "Indisponible",
-    "entity_not_found": "Entité {entity} introuvable"
+    "entity_not_found": "Entité {entity} introuvable",
+    "fallback_badge": "Secours"
   },
   "speed": {
     "label": "VITESSE",
@@ -38,7 +39,10 @@
     "sound": "Bip sonore",
     "preset": "Mode préréglé",
     "power": "Marche / Arrêt",
-    "oscillate": "Oscillation"
+    "oscillate": "Oscillation",
+    "dir_caption": "Sens des pales",
+    "dir_summer_hint": "Air poussé vers le bas",
+    "dir_winter_hint": "Air brassé vers le plafond"
   },
   "editor": {
     "title": "Paramètres de la carte ventilateur",

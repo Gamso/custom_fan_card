@@ -15,15 +15,16 @@ all follow what the entity reports.
 - Animated fan icon that spins faster with speed (still when the browser asks
   for reduced motion)
 - Summer/winter toggle in the status header, with configurable mapping to the fan's actual rotation direction
-- Preset mode selector (e.g. Sleep, Nature) in the header, for fans that support it
-- Compact control bar: power, oscillation, light, sound beep, and stop timer
-- Every control appears only if the fan supports it (`supported_features`):
-  no speed bar on an on/off fan, no power button on a fan that cannot be
-  turned on or off, an oscillation toggle on oscillating fans
-- Light color-temperature slider, shown when the light is on and supports it
+- Round speed dial (tap the arc or a speed number), with the power button in its opening
+- Blade direction (summer / winter) on its own row, with a different background effect for each (air streaks / rising particles)
+- Chips for preset mode, oscillation, light, stop timer and beep, each shown only if the fan supports it
+  (`supported_features`): no dial on an on/off fan, no power button on a fan that cannot be turned on or off
+- Stop timer always offers presets, also for fans with a free-form number entity
+- Light colour temperature, tucked behind a button next to the light chip
+- Optional backup fan (`fallback_fan_entity`) with a badge while it is in use
 - Controls that don't apply while the fan is off (light, sound, preset, timer, direction) are disabled automatically;
   a fan in `unknown` state counts as off and unavailable
-- Colours follow the Home Assistant theme, light or dark
+- Text and surfaces follow the Home Assistant theme, light or dark; the accent is green
 - Language auto-detected from Home Assistant (`fr` / `en`)
 - Visual editor in the HA dashboard UI, including the related entities
 
@@ -209,15 +210,14 @@ Home Assistant's ordered speed lists.
 
 ### Theming
 
-Colours come from the active Home Assistant theme (`--primary-color`,
-`--orange-color`, `--text-primary-color`, `--card-background-color`,
-`--primary-text-color`), so the card renders correctly on light and dark
-themes. Two variables can be overridden from a theme or with card-mod:
+Text, surfaces and borders come from the active Home Assistant theme
+(`--primary-text-color`, `--secondary-text-color`, `--card-background-color`),
+so the card renders correctly on light and dark themes. The accent is green;
+override it from a theme or with card-mod:
 
-| Variable                   | Default                | Used for                   |
-| -------------------------- | ---------------------- | -------------------------- |
-| `--custom-fan-card-accent` | `var(--primary-color)` | Speed bar, active controls |
-| `--custom-fan-card-summer` | `var(--orange-color)`  | Active summer button       |
+| Variable                   | Default   | Used for                                |
+| -------------------------- | --------- | --------------------------------------- |
+| `--custom-fan-card-accent` | `#2fd1a0` | Dial, active controls, glow and effects |
 
 ## Development
 

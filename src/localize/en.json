@@ -3,7 +3,8 @@
     "name_default": "Ceiling fan",
     "subtitle": "Connected fan",
     "unavailable": "Unavailable",
-    "entity_not_found": "Entity {entity} not found"
+    "entity_not_found": "Entity {entity} not found",
+    "fallback_badge": "Backup"
   },
   "speed": {
     "label": "SPEED",
@@ -38,7 +39,10 @@
     "sound": "Sound beep",
     "preset": "Preset mode",
     "power": "Power",
-    "oscillate": "Oscillation"
+    "oscillate": "Oscillation",
+    "dir_caption": "Blade direction",
+    "dir_summer_hint": "Air pushed down",
+    "dir_winter_hint": "Air pulled up"
   },
   "editor": {
     "title": "Fan card settings",

@@ -44,6 +44,12 @@ export async function mountCard(
   return el;
 }
 
+// The colour-temperature slider is tucked behind a toggle next to the light chip.
+export async function openTempPanel(el: CardElement): Promise<void> {
+  ($(el, ".temp-toggle") as HTMLButtonElement).click();
+  await el.updateComplete;
+}
+
 export function $(el: HTMLElement, selector: string): HTMLElement | null {
   return el.shadowRoot!.querySelector(selector);
 }

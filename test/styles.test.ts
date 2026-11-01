@@ -13,8 +13,9 @@ describe("styles (audit A4, A5)", () => {
     expect(stripped.match(/#[0-9a-f]{3,8}\b/gi)).toBeNull();
   });
 
-  it("derives the accent from the theme's primary colour", () => {
-    expect(css).toContain("var(--primary-color");
+  it("lets the accent be themed and takes text colours from the HA theme", () => {
+    expect(css).toContain("var(--custom-fan-card-accent");
+    expect(css).toContain("var(--primary-text-color)");
   });
 
   it("stops the spin for users who prefer reduced motion", () => {

@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, PropertyValues } from "lit";
+import { LitElement, html, css, nothing, svg, PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import "./custom-fan-card-editor";
@@ -27,6 +27,8 @@ import {
 class CustomFanCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: CustomFanCardConfig;
+  // The colour-temperature slider is tucked behind the light chip.
+  @state() private _tempOpen = false;
 
   // ── Static HA card registration ─────────────────────────────────────────────
 
@@ -462,6 +464,40 @@ class CustomFanCard extends LitElement {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  // The speed dial is a 270° arc opening at the bottom, drawn in a 300×276
+  // viewBox; the numbered speed buttons and the power button are positioned in
+  // the same coordinates (as percentages of the dial box).
+  private static readonly _DIAL = { cx: 150, cy: 150, r: 118, start: 135, sweep: 270, w: 300, h: 276 };
+
+  private _dialPoint(deg: number, radius: number): [number, number] {
+    const { cx, cy } = CustomFanCard._DIAL;
+    const rad = (deg * Math.PI) / 180;
+    return [cx + radius * Math.cos(rad), cy + radius * Math.sin(rad)];
+  }
+
+  private get _dialPath(): string {
+    const { r, start, sweep } = CustomFanCard._DIAL;
+    const [x1, y1] = this._dialPoint(start, r);
+    const [x2, y2] = this._dialPoint(start + sweep, r);
+    return `M ${x1} ${y1} A ${r} ${r} 0 1 1 ${x2} ${y2}`;
+  }
+
+  // Tapping the arc picks the speed nearest to the tapped angle.
+  private _onDialClick(ev: MouseEvent): void {
+    const svg = (ev.currentTarget as SVGGraphicsElement).ownerSVGElement;
+    if (!svg || isFanUnavailable(this._fanState)) return;
+    const { cx, cy, start, sweep, w, h } = CustomFanCard._DIAL;
+    const box = svg.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const x = ((ev.clientX - box.left) / box.width) * w - cx;
+    const y = ((ev.clientY - box.top) / box.height) * h - cy;
+    let angle = ((Math.atan2(y, x) * 180) / Math.PI - start + 360) % 360;
+    // The bottom gap belongs to the nearest end of the arc.
+    if (angle > sweep) angle = angle > sweep + (360 - sweep) / 2 ? 0 : sweep;
+    const count = this._speedCount;
+    this._setSpeed(Math.min(count, Math.max(1, Math.round((angle / sweep) * count))));
+  }
+
   private _renderSpeedIcon(speed: number) {
     const animDurations = ["none", "2.5s", "1.5s", "0.9s", "0.6s", "0.35s", "0.15s"];
     // A fan without SET_SPEED has no percentage: spin at a medium pace when on.
@@ -479,8 +515,8 @@ class CustomFanCard extends LitElement {
       <div class="fan-icon-wrap ${isOff ? "off" : ""}">
         <svg
           viewBox="0 0 24 24"
-          width="32"
-          height="32"
+          width="28"
+          height="28"
           fill="currentColor"
           class="fan-svg ${isOff ? "off" : ""}"
           style="${iconStyle}"
@@ -488,6 +524,255 @@ class CustomFanCard extends LitElement {
         >
           <path d="M12,11A1,1 0 0,0 11,12A1,1 0 0,0 12,13A1,1 0 0,0 13,12A1,1 0 0,0 12,11M12.5,2C17,2 17.11,5.57 14.75,6.75C13.76,7.24 13.32,8.29 13.13,9.22C13.61,9.42 14.03,9.73 14.35,10.13C18.05,8.13 22.03,8.92 22.03,12.5C22.03,17 18.46,17.1 17.28,14.73C16.78,13.74 15.72,13.3 14.79,13.11C14.59,13.59 14.28,14 13.88,14.34C15.87,18.03 15.08,22 11.5,22C7,22 6.91,18.42 9.27,17.24C10.25,16.75 10.69,15.71 10.89,14.79C10.4,14.59 9.97,14.27 9.65,13.87C5.96,15.85 2,15.07 2,11.5C2,7 5.56,6.89 6.74,9.26C7.24,10.25 8.29,10.69 9.22,10.88C9.41,10.4 9.73,9.97 10.13,9.65C8.14,5.96 8.92,2 12.5,2Z" />
         </svg>
+      </div>
+    `;
+  }
+
+  // Summer: streaks of air sweeping across the card. Winter: particles slowly
+  // rising, like air pushed up along the walls. Purely decorative.
+  private _renderFx() {
+    if (!this._fanSupportsDirection) return nothing;
+    if (this._isSummerMode) {
+      return html`<div class="fx summer" aria-hidden="true">
+        ${[18, 30, 44, 58, 70, 82].map(
+          (y, i) =>
+            html`<i style="--y:${y}%;--d:${2.6 + (i % 3) * 0.7}s;--delay:${-i * 0.9}s"></i>`,
+        )}
+      </div>`;
+    }
+    return html`<div class="fx winter" aria-hidden="true">
+      ${Array.from(
+        { length: 14 },
+        (_, i) =>
+          html`<i
+            style="--x:${6 + i * 6.7}%;--s:${3 + (i % 3)}px;--d:${5 + (i % 4)}s;--delay:${-i * 0.8}s;--dx:${(i % 2 ? 1 : -1) * (10 + (i % 5) * 6)}px"
+          ></i>`,
+      )}
+    </div>`;
+  }
+
+  private _renderPower(isUnavailable: boolean) {
+    if (!this._canTurnOn && !this._canTurnOff) return nothing;
+    return html`
+      <button
+        class="ctrl-btn power ${this._isOn ? "on" : ""}"
+        @click=${this._togglePower}
+        ?disabled=${isUnavailable || (this._isOn ? !this._canTurnOff : !this._canTurnOn)}
+        aria-label="${this._t("controls.power")}"
+        title="${this._t("controls.power")}"
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 4v8"/>
+          <path d="M7.8 6.8a6 6 0 1 0 8.4 0"/>
+        </svg>
+      </button>
+    `;
+  }
+
+  private _renderDial(speed: number, isUnavailable: boolean) {
+    const { w, h, r, start, sweep } = CustomFanCard._DIAL;
+    const count = this._speedCount;
+    const fraction = speed / count;
+    const [tx, ty] = this._dialPoint(start + sweep * fraction, r);
+    const pos = (deg: number, radius: number) => {
+      const [x, y] = this._dialPoint(deg, radius);
+      return `left:${(x / w) * 100}%;top:${(y / h) * 100}%`;
+    };
+    const ticks = Array.from({ length: count + 1 }, (_, i) => {
+      const angle = start + (sweep * i) / count;
+      const [x1, y1] = this._dialPoint(angle, r - 22);
+      const [x2, y2] = this._dialPoint(angle, r - 13);
+      return svg`<line class="tick ${i <= speed && speed > 0 ? "lit" : ""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`;
+    });
+    return html`
+      <div class="dial speed-bar">
+        <svg class="ring" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+          <path class="track" d="${this._dialPath}" />
+          ${speed > 0
+            ? svg`<path class="value" d="${this._dialPath}" pathLength="100" stroke-dasharray="100" stroke-dashoffset="${100 - fraction * 100}" />`
+            : nothing}
+          ${ticks}
+          <circle class="thumb ${speed === 0 ? "idle" : ""}" cx="${tx}" cy="${ty}" r="13" />
+          <path class="hit" d="${this._dialPath}" @click=${this._onDialClick} />
+        </svg>
+        <div class="center">
+          <div class="cap">${this._t("speed.label")}</div>
+          <div class="big">${speed}<small>/${count}</small></div>
+          <div class="fan-pct">
+            ${!this._isOn
+              ? "—"
+              : this._activePreset
+              ? this._t("controls.preset")
+              : `${speedToPercentage(speed, count)}%`}
+          </div>
+        </div>
+        ${Array.from({ length: count }, (_, i) => i + 1).map(
+          (s) => html`
+            <button
+              class="speed-seg ${speed >= s && speed > 0 ? "filled" : ""} ${speed === s ? "active" : ""}"
+              style="${pos(start + (sweep * s) / count, r - 36)}"
+              @click=${() => this._setSpeed(s)}
+              ?disabled=${isUnavailable}
+              aria-label="${this._speedLabel(s)}"
+              aria-pressed=${speed === s}
+            >${s}</button>
+          `,
+        )}
+        <div class="dial-power">${this._renderPower(isUnavailable)}</div>
+      </div>
+    `;
+  }
+
+  private _renderSeason() {
+    const summer = this._isSummerMode;
+    return html`
+      <div class="season">
+        <div class="season-cap">
+          <span>${this._t("controls.dir_caption")}</span>
+          <em>${this._t(summer ? "controls.dir_summer_hint" : "controls.dir_winter_hint")}</em>
+        </div>
+        <div class="season-toggle">
+          <button
+            class="season-btn summer ${summer ? "active" : ""}"
+            @click=${() => this._setSeason("summer")}
+            ?disabled=${!this._isOn}
+            aria-label="${this._t("controls.dir_summer")}"
+            aria-pressed=${summer}
+            title="${this._t("controls.dir_summer")}"
+          >
+            <ha-icon icon="mdi:weather-sunny"></ha-icon>
+            <span>${this._t("controls.dir_summer")}</span>
+          </button>
+          <button
+            class="season-btn winter ${!summer ? "active" : ""}"
+            @click=${() => this._setSeason("winter")}
+            ?disabled=${!this._isOn}
+            aria-label="${this._t("controls.dir_winter")}"
+            aria-pressed=${!summer}
+            title="${this._t("controls.dir_winter")}"
+          >
+            <ha-icon icon="mdi:snowflake"></ha-icon>
+            <span>${this._t("controls.dir_winter")}</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderChips(isUnavailable: boolean, lightDisabled: boolean) {
+    const off = isUnavailable || !this._isOn;
+    return html`
+      <div class="chips">
+        ${this._fanSupportsPreset
+          ? html`
+            <div class="chip ${this._activePreset ? "on" : ""} ${off ? "disabled" : ""}">
+              <ha-icon icon="mdi:tune-variant"></ha-icon>
+              <span class="chip-label">${this._presetMode ? this._formatPreset(this._presetMode) : this._t("controls.preset")}</span>
+              <select
+                class="preset-select ${this._activePreset ? "active" : ""}"
+                .value=${live(this._presetMode)}
+                @change=${this._setPreset}
+                ?disabled=${off}
+                aria-label="${this._t("controls.preset")}"
+                title="${this._t("controls.preset")}"
+              >
+                ${this._presetModes.includes(this._presetMode)
+                  ? nothing
+                  : html`<option value="" disabled selected>—</option>`}
+                ${this._presetModes.map(
+                  (p) => html`<option value="${p}" ?selected=${p === this._presetMode}>${this._formatPreset(p)}</option>`,
+                )}
+              </select>
+            </div>
+          `
+          : nothing}
+
+        ${this._fanSupportsOscillate
+          ? html`
+            <button
+              class="ctrl-btn chip oscillate ${this._isOscillating ? "on" : ""}"
+              @click=${this._toggleOscillate}
+              ?disabled=${off}
+              aria-label="${this._t("controls.oscillate")}"
+              aria-pressed=${this._isOscillating}
+              title="${this._t("controls.oscillate")}"
+            >
+              <ha-icon icon="${this._isOscillating ? "mdi:arrow-oscillating" : "mdi:arrow-oscillating-off"}"></ha-icon>
+              <span class="chip-label">${this._t("controls.oscillate")}</span>
+            </button>
+          `
+          : nothing}
+
+        ${this._lightState
+          ? html`
+            <div class="chip split ${this._isLightOn ? "on" : ""} ${lightDisabled ? "disabled" : ""}">
+              <button
+                class="ctrl-btn light main ${this._isLightOn ? "on" : ""}"
+                @click=${this._toggleLight}
+                ?disabled=${lightDisabled}
+                aria-label="${this._t("controls.light")}"
+                aria-pressed=${this._isLightOn}
+                title="${this._t("controls.light")}"
+              >
+                <ha-icon icon="${this._isLightOn ? "mdi:lightbulb-outline" : "mdi:lightbulb-off-outline"}"></ha-icon>
+                <span class="chip-label">${this._t("controls.light")}</span>
+              </button>
+              ${this._showColorTemp
+                ? html`
+                  <button
+                    class="temp-toggle ${this._tempOpen ? "open" : ""}"
+                    @click=${() => (this._tempOpen = !this._tempOpen)}
+                    aria-label="${this._t("controls.color_temp")}"
+                    aria-expanded=${this._tempOpen}
+                    title="${this._t("controls.color_temp")}"
+                  >
+                    <ha-icon icon="mdi:white-balance-sunny"></ha-icon>
+                    <span>K</span>
+                  </button>
+                `
+                : nothing}
+            </div>
+          `
+          : nothing}
+
+        ${this._timerState
+          ? html`
+            <div class="chip ${this._isTimerActive ? "on" : ""} ${off ? "disabled" : ""}">
+              <ha-icon icon="mdi:timer-outline"></ha-icon>
+              <span class="chip-label">${this._isTimerActive ? this._formatTimerOption(this._timerValue) : this._t("controls.timer")}</span>
+              <select
+                class="ctrl-select ${this._isTimerActive ? "active" : ""}"
+                .value=${live(String(this._timerValue))}
+                @change=${this._setTimer}
+                ?disabled=${off}
+                aria-label="${this._t("controls.timer")}"
+                title="${this._t("controls.timer")}"
+              >
+                ${this._timerChoices.map(
+                  (opt) => html`
+                    <option value="${opt}" ?selected=${opt === this._timerValue}>${this._formatTimerOption(opt)}</option>
+                  `,
+                )}
+              </select>
+            </div>
+          `
+          : nothing}
+
+        ${this._soundState
+          ? html`
+            <button
+              class="ctrl-btn chip sound ${this._isSoundOn ? "on" : ""}"
+              @click=${this._toggleSound}
+              ?disabled=${off}
+              aria-label="${this._t("controls.sound")}"
+              aria-pressed=${this._isSoundOn}
+              title="${this._t("controls.sound")}"
+            >
+              <ha-icon icon="${this._isSoundOn ? "mdi:volume-high" : "mdi:volume-off"}"></ha-icon>
+              <span class="chip-label">${this._t("controls.sound")}</span>
+            </button>
+          `
+          : nothing}
       </div>
     `;
   }
@@ -518,258 +803,85 @@ class CustomFanCard extends LitElement {
       this._config.name ||
       fan.attributes?.friendly_name ||
       this._t("card.name_default");
+    const onFallback =
+      !!this._config.fallback_fan_entity &&
+      this._entities.fan === this._config.fallback_fan_entity &&
+      this._entities.fan !== this._config.fan_entity;
+    const active = this._isOn && !isUnavailable;
 
     return html`
       <ha-card>
-        <div class="card-content ${isUnavailable ? "unavailable" : ""}">
+        <div class="card-content ${isUnavailable ? "unavailable" : ""} ${this._isOn ? "" : "idle"}">
+          ${active ? this._renderFx() : nothing}
 
-          ${this._config.show_name !== false
-            ? html`
-              <div class="card-header">
-                <div class="card-title">${cardName}</div>
+          <div class="card-header">
+            ${this._renderSpeedIcon(speed)}
+            <div class="head-text">
+              ${this._config.show_name !== false
+                ? html`<div class="card-title">${cardName}</div>`
+                : nothing}
+              <div class="status">
+                <span class="dot"></span>
+                <span class="fan-state">${this._activePreset
+                  ? this._formatPreset(this._activePreset)
+                  : this._speedStateLabel(speed)}</span>
+                ${this._fanSupportsDirection && this._isOn
+                  ? html`<span class="fan-season">· ${this._t(this._isSummerMode ? "controls.dir_summer" : "controls.dir_winter")}</span>`
+                  : nothing}
               </div>
-            `
-            : nothing}
+            </div>
+            ${onFallback
+              ? html`<span class="badge" title="${this._entities.fan}">${this._t("card.fallback_badge")}</span>`
+              : nothing}
+          </div>
 
           ${isUnavailable
             ? html`<div class="unavailable-msg">${this._t("card.unavailable")}</div>`
             : nothing}
 
-          <div class="fan-status-row">
-            <div class="fan-status-main">
-              ${this._renderSpeedIcon(speed)}
-              <div class="fan-info">
-                <div class="fan-state">
-                  ${this._activePreset
-                    ? this._formatPreset(this._activePreset)
-                    : this._speedStateLabel(speed)}
-                </div>
-                <div class="fan-pct">
-                  ${!this._isOn || !this._fanSupportsSpeed
-                    ? "—"
-                    : this._activePreset
-                    ? this._t("controls.preset")
-                    : `${speedToPercentage(speed, this._speedCount)}%`}
-                </div>
-              </div>
-            </div>
-
-            ${this._fanSupportsDirection || this._fanSupportsPreset
-              ? html`
-                <div class="header-controls">
-                  ${this._fanSupportsDirection
-                    ? html`
-                      <div class="season-toggle">
-                        <button
-                          class="season-btn summer ${this._isSummerMode ? "active" : ""}"
-                          @click=${() => this._setSeason("summer")}
-                          ?disabled=${!this._isOn}
-                          aria-label="${this._t("controls.dir_summer")}"
-                          title="${this._t("controls.dir_summer")}"
-                        >
-                          <ha-icon icon="mdi:weather-sunny"></ha-icon>
-                        </button>
-                        <button
-                          class="season-btn winter ${!this._isSummerMode ? "active" : ""}"
-                          @click=${() => this._setSeason("winter")}
-                          ?disabled=${!this._isOn}
-                          aria-label="${this._t("controls.dir_winter")}"
-                          title="${this._t("controls.dir_winter")}"
-                        >
-                          <ha-icon icon="mdi:snowflake"></ha-icon>
-                        </button>
-                      </div>
-                    `
-                    : nothing}
-
-                  ${this._fanSupportsPreset
-                    ? html`
-                      <select
-                        class="preset-select ${this._activePreset ? "active" : ""}"
-                        .value=${live(this._presetMode)}
-                        @change=${this._setPreset}
-                        ?disabled=${!this._isOn}
-                        aria-label="${this._t("controls.preset")}"
-                        title="${this._t("controls.preset")}"
-                      >
-                        ${this._presetModes.includes(this._presetMode)
-                          ? nothing
-                          : html`<option value="" disabled selected>—</option>`}
-                        ${this._presetModes.map(
-                          (p) => html`<option value="${p}" ?selected=${p === this._presetMode}>${this._formatPreset(p)}</option>`
-                        )}
-                      </select>
-                    `
-                    : nothing}
-                </div>
-              `
-              : nothing}
-          </div>
-
           ${this._fanSupportsSpeed
-            ? html`
-              <div class="speed-bar">
-                ${Array.from({ length: this._speedCount }, (_, i) => i + 1).map(
-                  (s) => html`
-                    <button
-                      class="speed-seg ${speed >= s && speed > 0 ? "filled" : ""} ${speed === s ? "active" : ""}"
-                      @click=${() => this._setSpeed(s)}
-                      ?disabled=${isUnavailable}
-                      aria-label="${this._speedLabel(s)}"
-                      aria-pressed=${speed === s}
-                    >
-                      <span class="speed-seg-fill"></span>
-                      <span class="speed-seg-num">${s}</span>
-                    </button>
-                  `
-                )}
-              </div>
-            `
-            : nothing}
+            ? this._renderDial(speed, isUnavailable)
+            : html`<div class="onoff">${this._renderPower(isUnavailable)}</div>`}
 
-          <div class="control-bar">
-            ${this._canTurnOn || this._canTurnOff
-              ? html`
-                <button
-                  class="ctrl-btn power ${this._isOn ? "on" : ""}"
-                  @click=${this._togglePower}
-                  ?disabled=${isUnavailable || (this._isOn ? !this._canTurnOff : !this._canTurnOn)}
-                  aria-label="${this._t("controls.power")}"
-                  title="${this._t("controls.power")}"
-                >
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                    <path d="M12 4v8"/>
-                    <path d="M7.8 6.8a6 6 0 1 0 8.4 0"/>
-                  </svg>
-                </button>
-              `
-              : nothing}
+          ${this._fanSupportsDirection ? this._renderSeason() : nothing}
 
-            ${this._fanSupportsOscillate
-              ? html`
-                <button
-                  class="ctrl-btn oscillate ${this._isOscillating ? "on" : ""}"
-                  @click=${this._toggleOscillate}
-                  ?disabled=${isUnavailable || !this._isOn}
-                  aria-label="${this._t("controls.oscillate")}"
-                  aria-pressed=${this._isOscillating}
-                  title="${this._t("controls.oscillate")}"
-                >
-                  <ha-icon icon="${this._isOscillating ? "mdi:arrow-oscillating" : "mdi:arrow-oscillating-off"}"></ha-icon>
-                </button>
-              `
-              : nothing}
+          ${this._renderChips(isUnavailable, lightDisabled)}
 
-            ${this._lightState
-              ? html`
-                <button
-                  class="ctrl-btn light ${this._isLightOn ? "on" : ""}"
-                  @click=${this._toggleLight}
-                  ?disabled=${lightDisabled}
-                  aria-label="${this._t("controls.light")}"
-                  title="${this._t("controls.light")}"
-                >
-                  <ha-icon icon="${this._isLightOn ? "mdi:lightbulb-outline" : "mdi:lightbulb-off-outline"}"></ha-icon>
-                </button>
-              `
-              : nothing}
-
-            ${this._soundState || this._timerState
-              ? html`<div class="ctrl-sep"></div>`
-              : nothing}
-
-            ${this._soundState
-              ? html`
-                <button
-                  class="ctrl-btn sound ${this._isSoundOn ? "on" : ""}"
-                  @click=${this._toggleSound}
-                  ?disabled=${isUnavailable || !this._isOn}
-                  aria-label="${this._t("controls.sound")}"
-                  title="${this._t("controls.sound")}"
-                >
-                  <ha-icon icon="${this._isSoundOn ? "mdi:volume-high" : "mdi:volume-off"}"></ha-icon>
-                </button>
-              `
-              : nothing}
-
-            ${this._timerState
-              ? html`
-                <select
-                  class="ctrl-select ${this._isTimerActive ? "active" : ""}"
-                  .value=${live(String(this._timerValue))}
-                  @change=${this._setTimer}
-                  ?disabled=${isUnavailable || !this._isOn}
-                  aria-label="${this._t("controls.timer")}"
-                  title="${this._t("controls.timer")}"
-                >
-                  ${this._timerChoices.map(
-                    (opt) => html`
-                      <option value="${opt}" ?selected=${opt === this._timerValue}>${this._formatTimerOption(opt)}</option>
-                    `
-                  )}
-                </select>
-              `
-              : nothing}
-          </div>
-
-          ${this._showColorTemp
+          ${this._showColorTemp && this._tempOpen
             ? html`
               <div class="temp-row">
-                <div class="temp-divider"></div>
-                <div class="temp-controls">
-                  <span class="temp-label warm">${this._t("controls.temp_warm")}</span>
-                  <input
-                    class="temp-slider"
-                    type="range"
-                    min="${this._minKelvin}"
-                    max="${this._maxKelvin}"
-                    step="100"
-                    .value=${live(String(this._currentKelvin))}
-                    @change=${this._setColorTemp}
-                    ?disabled=${this._config.light_independent ? lightDisabled : isUnavailable}
-                    aria-label="${this._t("controls.color_temp")}"
-                  />
-                  <span class="temp-label cool">${this._t("controls.temp_cool")}</span>
-                  <span class="temp-value">${this._currentKelvin}K</span>
-                </div>
+                <span class="temp-label warm">${this._t("controls.temp_warm")}</span>
+                <input
+                  class="temp-slider"
+                  type="range"
+                  min="${this._minKelvin}"
+                  max="${this._maxKelvin}"
+                  step="100"
+                  .value=${live(String(this._currentKelvin))}
+                  @change=${this._setColorTemp}
+                  ?disabled=${this._config.light_independent ? lightDisabled : isUnavailable}
+                  aria-label="${this._t("controls.color_temp")}"
+                />
+                <span class="temp-label cool">${this._t("controls.temp_cool")}</span>
+                <span class="temp-value">${this._currentKelvin}K</span>
               </div>
             `
             : nothing}
-
         </div>
       </ha-card>
     `;
   }
 
   static styles = css`
-    /* Every colour derives from the HA theme, so light and dark themes (and
-       custom themes) both render correctly. Mixing with --primary-text-color
-       darkens a tint on light themes and lightens it on dark ones, keeping
-       text readable on either. The hex values are fallbacks only. */
+    /* Colours derive from the HA theme (text, card background, dividers) so
+       light and dark themes both work; only the accent is a fixed green,
+       overridable with --custom-fan-card-accent. The hex value is a fallback. */
     :host {
-      --wc-accent: var(--custom-fan-card-accent, var(--primary-color, #378add));
-      --wc-on-accent: var(--text-primary-color, #fff);
-      --wc-accent-light: color-mix(
-        in srgb,
-        var(--wc-accent) 18%,
-        var(--card-background-color, #fff)
-      );
-      --wc-accent-dark: color-mix(
-        in srgb,
-        var(--wc-accent) 65%,
-        var(--primary-text-color, #212121)
-      );
-      --wc-summer: var(--custom-fan-card-summer, var(--orange-color, #e0912f));
-      --wc-warm-text: color-mix(
-        in srgb,
-        var(--wc-summer) 75%,
-        var(--primary-text-color, #212121)
-      );
-      --wc-cool-text: color-mix(
-        in srgb,
-        var(--wc-accent) 75%,
-        var(--primary-text-color, #212121)
-      );
+      --wc-accent: var(--custom-fan-card-accent, #2fd1a0);
+      --wc-text: var(--primary-text-color);
+      --wc-dim: var(--secondary-text-color);
+      --wc-surface: color-mix(in srgb, var(--primary-text-color) 7%, transparent);
+      --wc-line: color-mix(in srgb, var(--primary-text-color) 15%, transparent);
       --wc-focus-ring: 2px solid var(--wc-accent);
     }
 
@@ -780,159 +892,176 @@ class CustomFanCard extends LitElement {
     }
 
     ha-card {
+      position: relative;
       overflow: hidden;
+      border-radius: 26px;
+      background: linear-gradient(
+        160deg,
+        color-mix(in srgb, var(--card-background-color, transparent) 92%, var(--primary-text-color) 8%),
+        var(--card-background-color, transparent)
+      );
     }
 
+    /* --wc-a is the colour in use: the accent while running, grey while idle. */
     .card-content {
-      padding: 16px;
+      --wc-a: var(--wc-accent);
+      --wc-a-soft: color-mix(in srgb, var(--wc-a) 55%, white);
+      --wc-on-a: color-mix(in srgb, var(--wc-a) 18%, black);
+      --wc-glow: color-mix(in srgb, var(--wc-a) 30%, transparent);
+      position: relative;
+      padding: 18px 18px 16px;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wc-a) 28%, var(--wc-line));
+      border-radius: inherit;
+      transition: box-shadow 0.4s;
+    }
+    .card-content.idle {
+      --wc-a: var(--wc-dim);
+      --wc-glow: transparent;
+      box-shadow: inset 0 0 0 1px var(--wc-line);
     }
     .card-content.unavailable {
       opacity: 0.6;
     }
+    .card-content::before {
+      content: "";
+      position: absolute;
+      inset: -30% -20% auto -20%;
+      height: 70%;
+      background: radial-gradient(closest-side, var(--wc-glow), transparent 70%);
+      pointer-events: none;
+    }
+    .card-content > *:not(.fx) {
+      position: relative;
+      z-index: 1;
+    }
 
+    /* Season effects */
+    .fx {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .fx i {
+      position: absolute;
+      opacity: 0;
+    }
+    .fx.summer i {
+      left: -40%;
+      top: var(--y);
+      width: 40%;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent, var(--wc-a-soft), transparent);
+      animation: streak var(--d) linear infinite;
+      animation-delay: var(--delay);
+    }
+    .fx.winter i {
+      bottom: -10px;
+      left: var(--x);
+      width: var(--s);
+      height: var(--s);
+      border-radius: 50%;
+      background: var(--wc-a-soft);
+      box-shadow: 0 0 8px var(--wc-a);
+      animation: rise var(--d) ease-in infinite;
+      animation-delay: var(--delay);
+    }
+    @keyframes streak {
+      0% { transform: translateX(0); opacity: 0; }
+      15% { opacity: 0.55; }
+      85% { opacity: 0.45; }
+      100% { transform: translateX(380%); opacity: 0; }
+    }
+    @keyframes rise {
+      0% { transform: translate(0, 0); opacity: 0; }
+      15% { opacity: 0.8; }
+      100% { transform: translate(var(--dx), -460px); opacity: 0; }
+    }
+
+    /* Header */
     .card-header {
       display: flex;
       align-items: center;
-      justify-content: center;
-      margin-bottom: 16px;
+      gap: 14px;
+    }
+    .head-text {
+      min-width: 0;
+      flex: 1;
     }
     .card-title {
-      font-size: 16px;
-      font-weight: 500;
-      color: var(--primary-text-color);
-      text-align: center;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--wc-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 3px;
+      font-size: 14px;
+      color: var(--wc-dim);
+      min-width: 0;
+    }
+    .status .fan-state {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .status .fan-season {
+      white-space: nowrap;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex: none;
+      background: var(--wc-a);
+      box-shadow: 0 0 8px var(--wc-a);
+    }
+    .badge {
+      flex: none;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: var(--wc-a-soft);
+      border: 1px solid color-mix(in srgb, var(--wc-a) 50%, transparent);
+      background: color-mix(in srgb, var(--wc-a) 12%, transparent);
     }
 
     .unavailable-msg {
       font-size: 13px;
-      color: var(--secondary-text-color);
+      color: var(--wc-dim);
       text-align: center;
-      padding: 8px 0;
-    }
-
-    .fan-status-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 16px;
-      padding: 12px;
-      background: var(--secondary-background-color);
-      border-radius: 8px;
-    }
-    .fan-status-main {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      min-width: 0;
-    }
-
-    .header-controls {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .season-toggle {
-      display: flex;
-      gap: 1px;
-      flex-shrink: 0;
-      border: 1px solid var(--divider-color);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    .season-btn {
-      width: 64px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      border-radius: 0;
-      background: transparent;
-      color: var(--secondary-text-color);
-      cursor: pointer;
-      padding: 0;
-      transition: background 0.15s, color 0.15s;
-    }
-    .season-btn:hover:not(:disabled):not(.active) {
-      background: var(--card-background-color);
-      color: var(--primary-text-color);
-    }
-    .season-btn.summer.active {
-      background: var(--wc-summer);
-      color: var(--wc-on-accent);
-    }
-    .season-btn.winter.active {
-      background: var(--wc-accent);
-      color: var(--wc-on-accent);
-    }
-    .season-btn ha-icon {
-      --mdc-icon-size: 20px;
-      display: flex;
-    }
-
-    .preset-select {
-      width: 131px;
-      height: 36px;
-      font-size: 13px;
-      padding: 0 20px 0 8px;
-      border: 1px solid var(--divider-color, #e0e0e0);
-      border-radius: 4px;
-      background: var(--card-background-color, #fff);
-      color: var(--primary-text-color);
-      cursor: pointer;
-      outline: none;
-      transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
-    }
-    .preset-select:hover:not(:disabled) {
-      border-color: var(--wc-accent);
-    }
-    .preset-select:focus-visible {
-      box-shadow: 0 0 0 2px var(--wc-accent);
-    }
-    .preset-select.active {
-      border-color: var(--wc-accent);
-      background: var(--wc-accent);
-      color: var(--wc-on-accent);
-    }
-    .preset-select:disabled {
-      cursor: default;
-      opacity: 0.4;
-    }
-    .season-btn:disabled {
-      cursor: default;
-      opacity: 0.4;
+      padding: 8px 0 0;
     }
 
     .fan-icon-wrap {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: var(--wc-accent-light);
-      border: 1.5px solid var(--wc-accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      transition: background 0.3s, border-color 0.3s;
+      width: 48px;
+      height: 48px;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      flex: none;
+      color: var(--wc-a);
+      background: color-mix(in srgb, var(--wc-a) 16%, var(--wc-surface));
+      border: 1px solid color-mix(in srgb, var(--wc-a) 45%, transparent);
+      transition: color 0.3s, background 0.3s, border-color 0.3s;
     }
     .fan-icon-wrap.off {
-      background: var(--secondary-background-color);
-      border-color: var(--divider-color);
+      background: var(--wc-surface);
+      border-color: var(--wc-line);
     }
-
     .fan-svg {
-      color: var(--wc-accent);
-      transition: color 0.3s;
       transform-origin: center;
     }
-    .fan-svg.off {
-      color: var(--secondary-text-color);
-    }
-
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
@@ -944,179 +1073,372 @@ class CustomFanCard extends LitElement {
       .fan-svg {
         animation: none !important;
       }
+      .fx {
+        display: none;
+      }
     }
 
-    .fan-info { min-width: 0; }
-    .fan-state {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--primary-text-color);
-      white-space: nowrap;
+    /* Dial */
+    .dial {
+      position: relative;
+      width: 100%;
+      max-width: 320px;
+      margin: 4px auto 22px;
+      aspect-ratio: 300 / 276;
+    }
+    .ring {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .track,
+    .value,
+    .hit {
+      fill: none;
+      stroke-width: 16;
+      stroke-linecap: round;
+    }
+    .track {
+      stroke: var(--wc-line);
+    }
+    .value {
+      stroke: var(--wc-a);
+      filter: drop-shadow(0 0 8px var(--wc-glow));
+      transition: stroke-dashoffset 0.35s ease;
+    }
+    .hit {
+      stroke: transparent;
+      stroke-width: 44;
+      cursor: pointer;
+      pointer-events: stroke;
+    }
+    .tick {
+      stroke: var(--wc-line);
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+    .tick.lit {
+      stroke: var(--wc-a);
+    }
+    .thumb {
+      fill: var(--wc-text);
+      stroke: var(--wc-a);
+      stroke-width: 5;
+      filter: drop-shadow(0 0 8px var(--wc-a));
+      pointer-events: none;
+      transition: cx 0.35s, cy 0.35s;
+    }
+    .thumb.idle {
+      filter: none;
+    }
+    .center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding-top: 5%;
+      pointer-events: none;
+    }
+    .center .cap {
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--wc-dim);
+    }
+    .center .big {
+      font-size: 64px;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--wc-text);
+    }
+    .center .big small {
+      font-size: 24px;
+      font-weight: 700;
+      margin-left: 2px;
+      color: var(--wc-a-soft);
+    }
+    .idle .center .big {
+      color: var(--wc-dim);
     }
     .fan-pct {
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin-top: 2px;
-    }
-
-    .speed-bar {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 16px;
+      margin-top: 4px;
+      font-size: 15px;
+      color: var(--wc-dim);
     }
 
     .speed-seg {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 28px;
+      height: 28px;
       padding: 0;
-      border: none;
+      border: 0;
+      border-radius: 50%;
       background: transparent;
+      color: var(--wc-dim);
+      font: 600 12px inherit;
       cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+    }
+    .speed-seg.filled {
+      color: var(--wc-a-soft);
+    }
+    .speed-seg.active {
+      color: var(--wc-on-a);
+      background: var(--wc-a);
+      font-weight: 800;
+    }
+    .speed-seg:hover:not(:disabled):not(.active) {
+      background: var(--wc-surface);
     }
     .speed-seg:disabled {
       cursor: default;
       opacity: 0.5;
     }
 
-    .speed-seg-fill {
-      height: 20px;
-      border-radius: 5px;
-      background: var(--card-background-color);
-      border: 1px solid var(--divider-color);
-      transition: background 0.15s, border-color 0.15s;
+    .dial-power {
+      position: absolute;
+      left: 50%;
+      top: 88%;
+      transform: translate(-50%, -50%);
     }
-    .speed-seg:hover:not(:disabled) .speed-seg-fill {
-      border-color: var(--wc-accent);
-    }
-    .speed-seg.filled .speed-seg-fill {
-      background: var(--wc-accent);
-      border-color: var(--wc-accent);
-    }
-
-    .speed-seg-num {
-      font-size: 13px;
-      text-align: center;
-      color: var(--secondary-text-color);
-      padding: 2px 0;
-      border-radius: 5px;
-      transition: color 0.15s, background 0.15s;
-    }
-    .speed-seg.active .speed-seg-num {
-      color: var(--wc-accent-dark);
-      background: var(--wc-accent-light);
-      font-weight: 500;
-    }
-
-    .control-bar {
+    .onoff {
       display: flex;
-      align-items: center;
       justify-content: center;
-      gap: 8px;
-      flex-wrap: wrap;
+      padding: 18px 0 8px;
     }
 
-    .ctrl-btn {
-      width: 40px;
-      height: 40px;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1.5px solid transparent;
+    .ctrl-btn.power {
+      width: 56px;
+      height: 56px;
       border-radius: 50%;
-      background: transparent;
-      color: var(--secondary-text-color);
-      cursor: pointer;
+      border: 1px solid var(--wc-line);
+      background: var(--wc-surface);
+      color: var(--wc-dim);
+      display: grid;
+      place-items: center;
       padding: 0;
-      transition: color 0.15s, border-color 0.15s;
+      cursor: pointer;
+      transition: 0.2s;
     }
-    .ctrl-btn:hover:not(:disabled) {
-      border-color: var(--divider-color);
-      color: var(--primary-text-color);
+    .ctrl-btn.power:hover:not(:disabled) {
+      border-color: var(--wc-a);
+      box-shadow: 0 0 12px -2px var(--wc-a);
     }
-    .ctrl-btn.on {
-      color: var(--wc-accent);
-    }
-    .ctrl-btn.on:hover:not(:disabled) {
-      border-color: var(--wc-accent);
-      color: var(--wc-accent);
+    .ctrl-btn.power.on {
+      color: var(--wc-on-a);
+      background: linear-gradient(180deg, var(--wc-a-soft), var(--wc-a));
+      border-color: transparent;
+      box-shadow: 0 6px 16px -4px var(--wc-glow);
     }
     .ctrl-btn:disabled {
       cursor: default;
       opacity: 0.4;
     }
-    .ctrl-btn ha-icon {
+
+    /* Season */
+    .season-cap {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 4px 6px;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--wc-dim);
+    }
+    .season-cap em {
+      font-style: normal;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .season-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 5px;
+      border-radius: 18px;
+      background: var(--wc-surface);
+      border: 1px solid var(--wc-line);
+    }
+    .season-btn {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 14px;
+      background: transparent;
+      color: var(--wc-dim);
+      font: 700 14px inherit;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.2s, color 0.2s;
+    }
+    .season-btn ha-icon {
       --mdc-icon-size: 22px;
       display: flex;
     }
-
-    .ctrl-sep {
-      width: 1px;
-      align-self: stretch;
-      margin: 4px 2px;
-      background: var(--divider-color);
-      flex-shrink: 0;
+    .season-btn.active {
+      color: var(--wc-on-a);
+      background: linear-gradient(180deg, var(--wc-a-soft), var(--wc-a));
+      box-shadow: 0 6px 16px -4px var(--wc-glow);
     }
-
-    .ctrl-select {
-      height: 40px;
-      width: 140px;
-      flex: none;
-      font-size: 13px;
-      padding: 0 20px 0 10px;
-      border: 1px solid var(--divider-color, #e0e0e0);
-      border-radius: 4px;
-      background: var(--card-background-color, #fff);
-      color: var(--primary-text-color);
-      cursor: pointer;
-      outline: none;
-      transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
-    }
-    .ctrl-select:hover:not(:disabled) {
-      border-color: var(--wc-accent);
-    }
-    .ctrl-select:focus-visible {
-      box-shadow: 0 0 0 2px var(--wc-accent);
-    }
-    .ctrl-select.active {
-      border-color: var(--wc-accent);
-      background: var(--wc-accent);
-      color: var(--wc-on-accent);
-    }
-    .ctrl-select:disabled {
+    .season-btn:disabled {
       cursor: default;
-      opacity: 0.5;
+      opacity: 0.4;
     }
 
+    /* Chips */
+    .chips {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .chips > :last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+    .chip {
+      position: relative;
+      height: 46px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 14px;
+      border: 1px solid var(--wc-line);
+      background: var(--wc-surface);
+      color: var(--wc-text);
+      font: 700 14px inherit;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      min-width: 0;
+    }
+    .chip ha-icon {
+      --mdc-icon-size: 20px;
+      display: flex;
+      flex: none;
+      color: var(--wc-dim);
+    }
+    .chip-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chip.on {
+      border-color: color-mix(in srgb, var(--wc-a) 55%, transparent);
+      background: color-mix(in srgb, var(--wc-a) 12%, var(--wc-surface));
+    }
+    .chip.on ha-icon,
+    .chip.on .ctrl-btn ha-icon {
+      color: var(--wc-a);
+    }
+    .chip.disabled,
+    .chip:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .ctrl-btn.chip {
+      width: auto;
+    }
+    .ctrl-btn.chip:hover:not(:disabled),
+    .chip:hover:not(.disabled) {
+      border-color: var(--wc-a);
+    }
+    .chip select {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .chip select:disabled {
+      cursor: default;
+    }
+    .chip.split {
+      padding: 0;
+      gap: 0;
+      overflow: hidden;
+      cursor: default;
+    }
+    .chip.split .main {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      padding: 0 12px;
+    }
+    .chip.split .main ha-icon {
+      --mdc-icon-size: 20px;
+      display: flex;
+      color: var(--wc-dim);
+    }
+    .chip.split.on .main ha-icon {
+      color: var(--wc-a);
+    }
+    .temp-toggle {
+      flex: none;
+      width: 56px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      border: 0;
+      border-left: 1px solid var(--wc-line);
+      background: transparent;
+      color: var(--wc-dim);
+      font: 700 11px inherit;
+      cursor: pointer;
+      padding: 0;
+    }
+    .temp-toggle ha-icon {
+      --mdc-icon-size: 18px;
+      display: flex;
+    }
+    .temp-toggle:hover,
+    .temp-toggle.open {
+      color: var(--wc-a);
+      background: color-mix(in srgb, var(--wc-a) 10%, transparent);
+    }
+
+    /* Colour temperature (collapsed behind the light chip) */
     .temp-row {
-      padding-top: 12px;
-    }
-    .temp-divider {
-      height: 1px;
-      background: var(--divider-color);
-      margin-bottom: 12px;
-    }
-    .temp-controls {
       display: flex;
       align-items: center;
       gap: 8px;
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: var(--wc-surface);
+      border: 1px solid var(--wc-line);
     }
     .temp-label {
       font-size: 11px;
       flex-shrink: 0;
-    }
-    .temp-label.warm {
-      color: var(--wc-warm-text);
-    }
-    .temp-label.cool {
-      color: var(--wc-cool-text);
+      color: var(--wc-dim);
     }
     .temp-value {
-      font-size: 11px;
-      color: var(--secondary-text-color);
-      min-width: 42px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--wc-text);
+      min-width: 46px;
       text-align: right;
       flex-shrink: 0;
     }
@@ -1135,19 +1457,19 @@ class CustomFanCard extends LitElement {
     .temp-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      background: var(--card-background-color, #fff);
-      border: 2px solid var(--primary-text-color);
+      background: var(--wc-text);
+      border: 4px solid var(--wc-accent);
       cursor: pointer;
     }
     .temp-slider::-moz-range-thumb {
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      background: var(--card-background-color, #fff);
-      border: 2px solid var(--primary-text-color);
+      background: var(--wc-text);
+      border: 4px solid var(--wc-accent);
       cursor: pointer;
     }
     .temp-slider:disabled {

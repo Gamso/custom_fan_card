@@ -37,7 +37,7 @@ describe("controls gated by supported_features", () => {
     const el = await mountCard({ fan_entity: FAN }, makeHass([fan("on", TURN_ON | TURN_OFF)]));
     expect($(el, ".speed-bar")).toBeNull();
     expect($(el, ".fan-state")?.textContent?.trim()).toBe("On");
-    expect($(el, ".fan-pct")?.textContent?.trim()).toBe("—");
+    expect($(el, ".fan-pct")).toBeNull();
     expect($(el, ".fan-svg")?.getAttribute("style")).toContain("animation: spin");
     expect($(el, ".ctrl-btn.power")).not.toBeNull();
   });
