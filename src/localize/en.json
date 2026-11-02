@@ -61,6 +61,9 @@
     "light_independent": "Light works while the fan is off",
     "timer_entity": "Timer entity (optional)",
     "sound_entity": "Beep switch (optional)",
-    "ambiguous": "several matches, pick one above"
+    "ambiguous": "several matches, pick one above",
+    "fallback_light_entity": "Backup light entity (optional)",
+    "fallback_timer_entity": "Backup timer entity (optional)",
+    "fallback_sound_entity": "Backup beep switch (optional)"
   }
 }

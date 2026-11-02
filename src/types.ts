@@ -29,6 +29,12 @@ export interface CustomFanCardConfig {
   light_entity?: string;
   timer_entity?: string;
   sound_entity?: string;
+  // Same overrides for the backup fan: used while fallback_fan_entity is in
+  // charge, auto-discovered from its own name when omitted (the overrides
+  // above describe the main fan only).
+  fallback_light_entity?: string;
+  fallback_timer_entity?: string;
+  fallback_sound_entity?: string;
 }
 
 export type EntityRole = "light" | "timer" | "sound";
@@ -289,14 +295,15 @@ export function resolveEntities(
 ): ResolvedEntities {
   const active = activeFanEntity(hass, config);
   if (active !== config.fan_entity) {
-    // Running on the fallback fan: the explicit overrides describe the primary
-    // device, so everything is discovered from the fallback's own name.
+    // Running on the fallback fan: the primary's overrides describe another
+    // device, so only the fallback_* ones apply; the rest is discovered from
+    // the fallback's own name.
     config = {
       ...config,
       fan_entity: active,
-      light_entity: undefined,
-      timer_entity: undefined,
-      sound_entity: undefined,
+      light_entity: config.fallback_light_entity,
+      timer_entity: config.fallback_timer_entity,
+      sound_entity: config.fallback_sound_entity,
     };
   }
   const base = fanBaseName(config.fan_entity);

@@ -123,3 +123,37 @@ describe("resolveEntities — fallback fan", () => {
     expect(r.fan).toBe("fan.k_offline");
   });
 });
+
+describe("resolveEntities — fallback overrides", () => {
+  const hass = makeHass([
+    entity("fan.k_offline", "unavailable"),
+    entity("fan.k_online", "on"),
+    entity("light.k_offline", "off"),
+    entity("light.k_online", "off"),
+    entity("light.custom_cloud", "off"),
+    entity("switch.k_son_online", "off"),
+  ]);
+  const config = {
+    fan_entity: "fan.k_offline",
+    fallback_fan_entity: "fan.k_online",
+    light_entity: "light.k_offline",
+    sound_entity: "switch.k_son_online",
+  };
+
+  it("uses the fallback_* overrides while the backup fan is in charge", () => {
+    const r = resolveEntities(hass, {
+      ...config,
+      fallback_light_entity: "light.custom_cloud",
+      fallback_sound_entity: "switch.k_son_online",
+    });
+    expect(r.fan).toBe("fan.k_online");
+    expect(r.light).toBe("light.custom_cloud");
+    expect(r.sound).toBe("switch.k_son_online");
+  });
+
+  it("does not reuse the main fan's overrides on the backup fan", () => {
+    const r = resolveEntities(hass, config);
+    expect(r.light).toBe("light.k_online");
+    expect(r.sound).toBeUndefined();
+  });
+});

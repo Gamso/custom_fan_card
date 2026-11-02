@@ -87,7 +87,14 @@ class CustomFanCardEditor extends LitElement {
 
     if (this._config?.fallback_fan_entity) {
       // Right after the fallback picker, where it is relevant.
-      schema.splice(2, 0, { name: "fallback_speed_percentages", selector: { text: {} } });
+      schema.splice(
+        2,
+        0,
+        { name: "fallback_speed_percentages", selector: { text: {} } },
+        { name: "fallback_light_entity", selector: { entity: { domain: "light" } } },
+        { name: "fallback_timer_entity", selector: { entity: { domain: ["number", "select"] } } },
+        { name: "fallback_sound_entity", selector: { entity: { domain: "switch" } } },
+      );
     }
 
     const fanState = this.hass?.states?.[this._config?.fan_entity];
@@ -119,6 +126,9 @@ class CustomFanCardEditor extends LitElement {
       fallback_fan_entity: "editor.fallback_fan_entity",
       speed_percentages: "editor.speed_percentages",
       fallback_speed_percentages: "editor.fallback_speed_percentages",
+      fallback_light_entity: "editor.fallback_light_entity",
+      fallback_timer_entity: "editor.fallback_timer_entity",
+      fallback_sound_entity: "editor.fallback_sound_entity",
       name: "editor.name",
       show_name: "editor.show_name",
       summer_direction: "editor.summer_direction",
@@ -132,10 +142,17 @@ class CustomFanCardEditor extends LitElement {
 
   private _valueChanged(ev: CustomEvent): void {
     const config: CustomFanCardConfig = { ...ev.detail.value };
+    const fallbackKeys = [
+      "fallback_speed_percentages",
+      "fallback_light_entity",
+      "fallback_timer_entity",
+      "fallback_sound_entity",
+    ] as const;
     if (!config.fallback_fan_entity) {
       delete config.fallback_fan_entity;
-      delete config.fallback_speed_percentages;
+      for (const key of fallbackKeys) delete config[key];
     }
+    for (const key of fallbackKeys) if (!config[key]) delete config[key];
     for (const key of ["speed_percentages", "fallback_speed_percentages"] as const) {
       if (!config[key]) delete config[key];
     }

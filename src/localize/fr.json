@@ -61,6 +61,9 @@
     "light_independent": "Lumière utilisable ventilateur éteint",
     "timer_entity": "Entité minuterie (facultatif)",
     "sound_entity": "Interrupteur du bip (facultatif)",
-    "ambiguous": "plusieurs candidates, choisissez ci-dessus"
+    "ambiguous": "plusieurs candidates, choisissez ci-dessus",
+    "fallback_light_entity": "Lumière du secours (facultatif)",
+    "fallback_timer_entity": "Minuterie du secours (facultatif)",
+    "fallback_sound_entity": "Bip du secours (facultatif)"
   }
 }
