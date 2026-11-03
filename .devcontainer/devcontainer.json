@@ -14,7 +14,8 @@
   "postCreateCommand": "bash /workspaces/custom_fan_card/.devcontainer/setup.sh",
   "mounts": [
     "source=${localWorkspaceFolder}/.devcontainer/config,target=/config,type=bind",
-    "source=${localWorkspaceFolder}/dist,target=/config/www/custom_fan_card,type=bind"
+    "source=${localWorkspaceFolder}/dist,target=/config/www/custom_fan_card,type=bind",
+    "source=${localWorkspaceFolder}/custom_components/custom_fan,target=/config/custom_components/custom_fan,type=bind"
   ],
   "customizations": {
     "vscode": {

@@ -1485,7 +1485,11 @@ class CustomFanCard extends LitElement {
   `;
 }
 
-customElements.define("custom-fan-card", CustomFanCard);
+// Guarded: the bundle may be loaded twice (the integration loads it, and a
+// dashboard resource may too).
+if (!customElements.get("custom-fan-card")) {
+  customElements.define("custom-fan-card", CustomFanCard);
+}
 
 declare global {
   interface Window {
@@ -1494,7 +1498,8 @@ declare global {
 }
 
 window.customCards = window.customCards || [];
-window.customCards.push({
+if (!window.customCards.some((card) => card.type === "custom-fan-card"))
+  window.customCards.push({
   type: "custom-fan-card",
   name: "Custom Fan Card",
   description: "Custom card for smart ceiling fans (CREATE Windcalm, Klassfan, …)",

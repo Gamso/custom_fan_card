@@ -1,0 +1,21 @@
+{
+  "domain": "custom_fan",
+  "name": "Custom Fan",
+  "after_dependencies": [
+    "mqtt"
+  ],
+  "codeowners": [
+    "@Gamso"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http"
+  ],
+  "documentation": "https://github.com/Gamso/custom_fan_card",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/Gamso/custom_fan_card/issues",
+  "requirements": [],
+  "version": "1.2.0"
+}

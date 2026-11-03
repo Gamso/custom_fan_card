@@ -30,8 +30,9 @@ all follow what the entity reports.
 
 ## Compatibility
 
-- Home Assistant **2024.8 or newer** (the power button relies on the
-  `TURN_ON` / `TURN_OFF` fan features introduced in 2024.8).
+- The integration needs Home Assistant **2026.2 or newer**. The card alone
+  works from **2024.8** (the power button relies on the `TURN_ON` / `TURN_OFF`
+  fan features introduced in 2024.8).
 - Any `fan` entity. Speeds, direction, presets and oscillation are shown when
   the entity's `supported_features` declare them. Fans with more than 10
   speed steps (continuous speed) get a 6-step bar.
@@ -40,11 +41,21 @@ all follow what the entity reports.
 
 ## Installation
 
+Since 1.2.0 the repository is a Home Assistant **integration** that ships the
+card: installing it also registers the card in every dashboard, so there is no
+dashboard resource to add. The card is still usable on its own (see manual
+installation).
+
 ### HACS (recommended)
 
-1. Add this repository to HACS as a custom **Dashboard** (frontend) repository.
-2. Search for **Custom Fan Card** and install it.
-3. HACS automatically registers the JS resource.
+1. In HACS, add this repository as a custom **Integration** repository.
+2. Install **Custom Fan** and restart Home Assistant.
+3. **Settings → Devices & services → Add integration → Custom Fan**, then
+   see [The integration](#the-integration) below.
+
+> Upgrading from a 1.1.x card install? Remove the old *Dashboard* repository
+> and the `custom-fan-card.js` resource first. If both are kept, the bundle is
+> loaded twice, which is harmless.
 
 ### Manual installation
 
@@ -53,12 +64,58 @@ all follow what the entity reports.
    (create the `www` folder if needed, then restart Home Assistant once so
    `/local/` is served).
 3. Go to **Settings → Dashboards → ⋮ → Resources → Add resource**, enter
-   `/local/custom-fan-card.js?v=1.1.0` and choose **JavaScript module**.
+   `/local/custom-fan-card.js?v=1.2.0` and choose **JavaScript module**.
    Change the `?v=` value after each update to bypass the browser cache.
 4. Refresh the browser. The browser console prints
-   `CUSTOM-FAN-CARD v1.1.0`: check that it shows the version you installed.
+   `CUSTOM-FAN-CARD v1.2.0`: check that it shows the version you installed.
 
-## Configuration
+## The integration
+
+A fan often exists twice in Home Assistant, once per integration (a local one
+and a cloud one, for example Tuya Local and Tuya). The integration merges them
+into one set of entities that automations, scripts, voice assistants and the
+card can target, whatever integration is working at the time.
+
+1. **Add the integration**: pick a name, the main fan and, optionally, a backup
+   fan. This creates a *Custom Fan* device.
+2. **Configure** (button on the integration's page), then:
+   - *Fan, light, timer and beep*: for each role, a main entity and a backup.
+     The main one is used while it is available, the backup takes over
+     otherwise, and the main one comes back as soon as it can.
+   - *Speed percentages*: for fans whose steps do not match their real speeds
+     (see `speed_percentages` below); the merged fan always exposes even steps.
+   - *Remotes*: map the buttons of a remote to actions.
+3. Use the entities it creates, named after the device: `fan.<name>`,
+   `light.<name>_light`, `select.<name>_timer`, `switch.<name>_sound`. The card
+   discovers them from `fan.<name>`.
+
+The merged entities:
+
+| Entity                    | Behaviour                                                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `fan.<name>`              | Speed (even percentages), direction, presets and oscillation of the fan in charge; `source_entity` and `using_backup` attributes tell which one that is. |
+| `light.<name>_light`      | On/off, brightness and colour temperature of the light in charge.                                                     |
+| `select.<name>_timer`     | The stop timer as presets (off, 15 min, 30 min, 1 h, 2 h, 4 h, 8 h) for a number entity; its own options for a select. |
+| `switch.<name>_sound`     | The beep switch in charge.                                                                                            |
+
+### Remotes
+
+Each button maps **a source** to **an action**:
+
+- **Source**: an MQTT message (topic and payload, e.g.
+  `zigbee2mqtt/<remote>/action` and `1_single`), or an entity (a Zigbee2MQTT
+  action sensor, whose state is compared to the payload, or an `event` entity,
+  whose event type is). An empty payload matches any press.
+- **Action**: fan toggle / on / off, one speed up or down, set a given speed,
+  light toggle / on / off, direction toggle / forward / reverse, oscillation
+  toggle, next preset, beep toggle.
+
+Actions go through the merged entities, so the backup fan, the speed
+percentages and the availability rules apply to a remote like they do to the
+card. This replaces automations such as "button 4 → set the percentage from a
+template".
+
+## Card configuration
 
 Only `fan_entity` is required. The light, timer, and sound entities are
 auto-discovered from the fan's base object id, so you can drop one card per fan
@@ -246,9 +303,20 @@ npm test            # Vitest (jsdom)
 npm run build       # rebuilds dist/custom-fan-card.js
 ```
 
-`dist/custom-fan-card.js` is committed because HACS serves it from the
-repository: rebuild and commit it with every source change. CI fails when the
-committed bundle differs from a fresh build. `npm run watch` also writes a
+The integration lives in `custom_components/custom_fan/` and its tests in
+`tests/` (pytest with `pytest-homeassistant-custom-component`):
+
+```bash
+pip install -r requirements_test.txt
+pytest
+ruff check custom_components tests
+```
+
+`dist/custom-fan-card.js` and its copy
+`custom_components/custom_fan/www/custom-fan-card.js` are committed because the
+integration serves the latter and manual installs use the former: rebuild and
+commit both with every source change (`npm run build` writes both). CI fails
+when the committed bundles differ from a fresh build. `npm run watch` also writes a
 sourcemap for local debugging; it is git-ignored and never published.
 
 ## Changelog

@@ -3,3 +3,7 @@ node_modules/
 # the repository. Sourcemaps are only emitted by `npm run watch` for local
 # debugging and must never be committed.
 dist/*.map
+
+__pycache__/
+.pytest_cache/
+.ruff_cache/

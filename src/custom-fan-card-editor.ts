@@ -274,4 +274,6 @@ class CustomFanCardEditor extends LitElement {
   `;
 }
 
-customElements.define("custom-fan-card-editor", CustomFanCardEditor);
+if (!customElements.get("custom-fan-card-editor")) {
+  customElements.define("custom-fan-card-editor", CustomFanCardEditor);
+}
