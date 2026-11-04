@@ -1,9 +1,11 @@
 # Custom Fan Card
 
-A custom Home Assistant card to control smart ceiling fans. Built for the
-CREATE Windcalm and Klassfan 6-speed fans, it adapts to any `fan` entity: the
-number of speeds, the season toggle, presets, oscillation and the power button
-all follow what the entity reports.
+A custom Home Assistant card to control smart ceiling fans, shipped with an
+integration that merges a local and a cloud entity of the same fan (for example
+Tuya Local and Tuya) and maps remote buttons to actions. Built for the
+CREATE Windcalm and Klassfan 6-speed fans, the card adapts to any `fan` entity:
+the number of speeds, the season toggle, presets, oscillation and the power
+button all follow what the entity reports.
 
 ![Card Preview](assets/card_preview.png)
 
@@ -53,9 +55,15 @@ installation).
 3. **Settings → Devices & services → Add integration → Custom Fan**, then
    see [The integration](#the-integration) below.
 
-> Upgrading from a 1.1.x card install? Remove the old *Dashboard* repository
-> and the `custom-fan-card.js` resource first. If both are kept, the bundle is
-> loaded twice, which is harmless.
+> Upgrading from a 1.1.x card install? HACS cannot change the category of a
+> repository it already knows: remove the old *Dashboard* repository and the
+> `custom-fan-card.js` resource first, then add it again as an *Integration*.
+> If both are kept, the bundle is loaded twice, which is harmless.
+>
+> HACS validates the latest *stable* release when a repository is added, so a
+> pre-release alone cannot be installed that way: enable *Show beta versions*
+> once the repository is added, or copy `custom_components/custom_fan` into
+> your `<config>/custom_components` folder.
 
 ### Manual installation
 
@@ -89,6 +97,12 @@ card can target, whatever integration is working at the time.
    `light.<name>_light`, `select.<name>_timer`, `switch.<name>_sound`. The card
    discovers them from `fan.<name>`.
 
+<p>
+  <img src="assets/integration_menu.png" alt="Configure menu" width="32%">
+  <img src="assets/integration_entities.png" alt="Main and backup entity of each role" width="32%">
+  <img src="assets/integration_remotes.png" alt="Remote buttons" width="32%">
+</p>
+
 The merged entities:
 
 | Entity                    | Behaviour                                                                                                             |
@@ -109,6 +123,8 @@ Each button maps **a source** to **an action**:
 - **Action**: fan toggle / on / off, one speed up or down, set a given speed,
   light toggle / on / off, direction toggle / forward / reverse, oscillation
   toggle, next preset, beep toggle.
+
+<img src="assets/integration_remote_add.png" alt="Adding a remote button" width="40%">
 
 Actions go through the merged entities, so the backup fan, the speed
 percentages and the availability rules apply to a remote like they do to the
