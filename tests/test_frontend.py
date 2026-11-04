@@ -1,6 +1,7 @@
 """Tests for the card bundled with the integration."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -41,3 +42,11 @@ def test_digest_changes_with_the_bundle(tmp_path):
 def test_bundle_is_shipped_with_the_integration():
     bundle = Path(frontend.__file__).parent / "www" / frontend.CARD_FILE
     assert bundle.stat().st_size > 0
+
+
+def test_manifest_version_matches_the_card_version():
+    """The cache-busting URL carries the manifest version: keep it in step with the card."""
+    root = Path(frontend.__file__).parents[2]
+    manifest = json.loads((Path(frontend.__file__).parent / "manifest.json").read_text())
+    package = json.loads((root / "package.json").read_text())
+    assert manifest["version"] == package["version"]
