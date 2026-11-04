@@ -1,6 +1,6 @@
 # DevContainer Development Environment
 
-This devcontainer lets you develop and test the Custom Fan Card against a real Home Assistant instance running in Docker, with all fan entities pre-configured as simulation helpers.
+This devcontainer lets you develop and test the FanBridge Card against a real Home Assistant instance running in Docker, with all fan entities pre-configured as simulation helpers.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ This devcontainer lets you develop and test the Custom Fan Card against a real H
    npm run build
    ```
 
-   Verify that `dist/custom-fan-card.js` exists.
+   Verify that `dist/fan-bridge-card.js` exists.
 
 2. **Open in container**:
    - Press `F1` → **"Dev Containers: Reopen in Container"**
@@ -42,7 +42,7 @@ This devcontainer lets you develop and test the Custom Fan Card against a real H
 | Path (host) | Mounted to (container) | Purpose |
 |---|---|---|
 | `.devcontainer/config/` | `/config/` | HA configuration (entities, Lovelace) |
-| `dist/` | `/config/www/custom_fan_card/` | Built card JS served by HA |
+| `dist/` | `/config/www/fan_bridge/` | Built card JS served by HA |
 
 The `dist/` folder is bind-mounted, so rebuilding on the host is immediately reflected in HA after a browser hard-refresh (`Ctrl+Shift+R`).
 

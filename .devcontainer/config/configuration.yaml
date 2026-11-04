@@ -1,5 +1,5 @@
 homeassistant:
-  name: Custom Fan Card DevContainer
+  name: FanBridge Card DevContainer
   latitude: 48.8566
   longitude: 2.3522
   elevation: 0
@@ -22,7 +22,7 @@ logger:
 lovelace:
   mode: yaml
   resources:
-    - url: /local/custom_fan_card/custom-fan-card.js?v=1
+    - url: /local/fan_bridge/fan-bridge-card.js?v=1
       type: module
 
 # ── Backing helpers ───────────────────────────────────────────────────────────

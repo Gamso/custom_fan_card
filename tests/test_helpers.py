@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.custom_fan.helpers import (
+from custom_components.fan_bridge.helpers import (
     parse_speed_percentages,
     percentage_to_speed,
     speed_count,

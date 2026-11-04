@@ -1,6 +1,6 @@
 import type { HassEntity, HomeAssistant } from "./ha-types";
 
-export interface CustomFanCardConfig {
+export interface FanBridgeCardConfig {
   name?: string;
   show_name?: boolean;
   fan_entity: string;
@@ -167,7 +167,7 @@ export function fanSupportsDirection(fanState: HassEntity | undefined): boolean 
  */
 export function activeFanEntity(
   hass: HomeAssistant | undefined,
-  config: Pick<CustomFanCardConfig, "fan_entity" | "fallback_fan_entity">,
+  config: Pick<FanBridgeCardConfig, "fan_entity" | "fallback_fan_entity">,
 ): string {
   const fallback = config.fallback_fan_entity;
   if (!fallback || fallback === config.fan_entity) return config.fan_entity;
@@ -291,7 +291,7 @@ function discoverRole(
  */
 export function resolveEntities(
   hass: HomeAssistant | undefined,
-  config: CustomFanCardConfig,
+  config: FanBridgeCardConfig,
 ): ResolvedEntities {
   const active = activeFanEntity(hass, config);
   if (active !== config.fan_entity) {

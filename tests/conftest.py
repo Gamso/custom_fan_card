@@ -1,4 +1,4 @@
-"""Shared fixtures for the Custom Fan integration tests."""
+"""Shared fixtures for the FanBridge integration tests."""
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.custom_fan.const import DOMAIN
+from custom_components.fan_bridge.const import DOMAIN
 
 
 @pytest.fixture(autouse=True)
@@ -18,7 +18,7 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 @pytest.fixture(autouse=True)
 def no_card_registration():
     """The bundled card needs a real http/frontend; test_frontend.py covers it."""
-    with patch("custom_components.custom_fan.async_register_card", new=AsyncMock()):
+    with patch("custom_components.fan_bridge.async_register_card", new=AsyncMock()):
         yield
 
 

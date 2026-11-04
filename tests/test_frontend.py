@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.custom_fan import frontend
-from custom_components.custom_fan.const import DOMAIN
+from custom_components.fan_bridge import frontend
+from custom_components.fan_bridge.const import DOMAIN
 
 
 async def test_card_is_served_and_loaded_once():
@@ -24,10 +24,10 @@ async def test_card_is_served_and_loaded_once():
 
     hass.http.async_register_static_paths.assert_awaited_once()
     (config,) = hass.http.async_register_static_paths.await_args.args[0]
-    assert config.url_path == f"/{DOMAIN}/custom-fan-card.js"
+    assert config.url_path == f"/{DOMAIN}/fan-bridge-card.js"
     digest = frontend._digest(Path(config.path))
     assert len(digest) == 8
-    add_url.assert_called_once_with(hass, f"/{DOMAIN}/custom-fan-card.js?v=9.9.9-{digest}")
+    add_url.assert_called_once_with(hass, f"/{DOMAIN}/fan-bridge-card.js?v=9.9.9-{digest}")
 
 
 def test_digest_changes_with_the_bundle(tmp_path):

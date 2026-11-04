@@ -13,7 +13,7 @@ const dev = process.env.ROLLUP_WATCH === "true";
 export default {
   input: "src/index.ts",
   output: {
-    file: "dist/custom-fan-card.js",
+    file: "dist/fan-bridge-card.js",
     format: "es",
     sourcemap: dev,
   },
@@ -32,8 +32,8 @@ export default {
     {
       name: "copy-to-integration",
       writeBundle() {
-        mkdirSync("custom_components/custom_fan/www", { recursive: true });
-        copyFileSync("dist/custom-fan-card.js", "custom_components/custom_fan/www/custom-fan-card.js");
+        mkdirSync("custom_components/fan_bridge/www", { recursive: true });
+        copyFileSync("dist/fan-bridge-card.js", "custom_components/fan_bridge/www/fan-bridge-card.js");
       },
     },
   ],

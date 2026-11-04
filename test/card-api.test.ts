@@ -4,7 +4,7 @@ import { $, entity, makeHass, mountCard } from "./helpers";
 type CardClass = {
   getStubConfig(hass?: unknown, entities?: string[]): { fan_entity: string };
 };
-const Card = customElements.get("custom-fan-card") as unknown as CardClass;
+const Card = customElements.get("fan-bridge-card") as unknown as CardClass;
 
 const FAN = "fan.f";
 const fan = (features = 1 | 16 | 32) =>
@@ -12,6 +12,12 @@ const fan = (features = 1 | 16 | 32) =>
 
 afterEach(() => {
   document.body.innerHTML = "";
+});
+
+describe("former card name", () => {
+  it("is still registered, so older dashboards keep working", () => {
+    expect(customElements.get("custom-fan-card")).toBeDefined();
+  });
 });
 
 describe("getStubConfig (audit A1)", () => {

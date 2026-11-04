@@ -55,7 +55,7 @@
     "summer_direction": "Rotation direction for summer mode",
     "dir_forward": "Normal",
     "dir_reverse": "Reverse",
-    "managed": "Managed by the Custom Fan integration: backup fan, light, timer, beep and speed percentages are set in its Configure dialog.",
+    "managed": "Managed by the FanBridge integration: backup fan, light, timer, beep and speed percentages are set in its Configure dialog.",
     "discovered": "Auto-discovered entities",
     "not_found": "not found",
     "light_entity": "Light entity (optional)",

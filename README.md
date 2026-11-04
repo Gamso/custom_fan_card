@@ -1,339 +1,73 @@
-# Custom Fan Card
+# FanBridge
 
-A custom Home Assistant card to control smart ceiling fans, shipped with an
-integration that merges a local and a cloud entity of the same fan (for example
-Tuya Local and Tuya) and maps remote buttons to actions. Built for the
-CREATE Windcalm and Klassfan 6-speed fans, the card adapts to any `fan` entity:
-the number of speeds, the season toggle, presets, oscillation and the power
-button all follow what the entity reports.
+**English** · [Français](README.fr.md)
 
-![Card Preview](assets/card_preview.png)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+
+A Home Assistant integration for smart ceiling fans. It **merges a local and a cloud entity of the same fan** (for example Tuya Local and Tuya) into one set of entities, with the local one in charge and the cloud one as a backup, maps the **buttons of a remote** to actions, and ships a **dashboard card** to control it all. The card also works on its own, with any `fan` entity.
+
+<p align="center">
+  <img src="docs/images/card/en/preview.png" alt="The FanBridge card" width="420">
+</p>
 
 ## Features
 
-- Speed bar with one numbered step per fan speed, derived from the entity's
-  `percentage_step` (6 steps when it is not reported); named speeds
-  (Gentle … Turbo) on 6-speed fans, "Speed N" otherwise
-- Animated fan icon that spins faster with speed (still when the browser asks
-  for reduced motion)
-- Summer/winter toggle in the status header, with configurable mapping to the fan's actual rotation direction
-- Round speed dial (tap the arc or a speed number), with the power button in its opening
-- Blade direction (summer / winter) on its own row, with a different background effect for each (air streaks / rising particles)
-- Chips for preset mode, oscillation, light, stop timer and beep, each shown only if the fan supports it
-  (`supported_features`): no dial on an on/off fan, no power button on a fan that cannot be turned on or off
-- Stop timer always offers presets, also for fans with a free-form number entity
-- Light colour temperature, tucked behind a button next to the light chip
-- Optional backup fan (`fallback_fan_entity`) with a badge while it is in use
-- Controls that don't apply while the fan is off (light, sound, preset, timer, direction) are disabled automatically;
-  a fan in `unknown` state counts as off and unavailable
-- Text and surfaces follow the Home Assistant theme, light or dark; the accent is green
-- Language auto-detected from Home Assistant (`fr` / `en`)
-- Visual editor in the HA dashboard UI, including the related entities
+| | |
+| --- | --- |
+| 🔁 **Main and backup fans** | For the fan, the light, the stop timer and the beep, a main entity is used while it is available and a backup one takes over otherwise, and gives control back as soon as the main one returns. → [Main and backup fans](docs/en/fans.md) |
+| 🎚️ **Speed percentages** | Two integrations seldom agree on the speeds of a fan (6 steps against 100). Give the percentage of each speed for each of them, and the merged fan exposes even steps. → [Speed percentages](docs/en/fans.md#speed-percentages) |
+| 🎛️ **Remotes** | Map the buttons of a Zigbee2MQTT remote (MQTT topic, action sensor or event entity) to 15 actions, instead of writing automations. → [Remotes](docs/en/remotes.md) |
+| 🖥️ **Dashboard card** | Bundled with the integration, nothing to install: speed dial, summer/winter direction, preset, oscillation, light, timer and beep, with a badge while the backup is in charge. → [The card](docs/en/card.md) |
+| ⚙️ **Set up from the UI** | A config flow and an options dialog, no YAML. → [Configuration](docs/en/configuration.md) |
 
-## Compatibility
+## Requirements
 
-- The integration needs Home Assistant **2026.2 or newer**. The card alone
-  works from **2024.8** (the power button relies on the `TURN_ON` / `TURN_OFF`
-  fan features introduced in 2024.8).
-- Any `fan` entity. Speeds, direction, presets and oscillation are shown when
-  the entity's `supported_features` declare them. Fans with more than 10
-  speed steps (continuous speed) get a 6-step bar.
-- Browsers supporting CSS `color-mix()` (all evergreen browsers and the
-  current Home Assistant companion apps).
+- **Home Assistant 2026.2** or newer
+- A `fan` entity (two, to use a backup)
+- Optional: the **MQTT** integration for remotes read from MQTT topics (Zigbee2MQTT)
+
+The card alone works from Home Assistant **2024.8** and with any browser that supports CSS `color-mix()` (all evergreen browsers and the current companion apps).
 
 ## Installation
 
-Since 1.2.0 the repository is a Home Assistant **integration** that ships the
-card: installing it also registers the card in every dashboard, so there is no
-dashboard resource to add. The card is still usable on its own (see manual
-installation).
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Gamso&repository=fan_bridge&category=integration)
 
-### HACS (recommended)
+Or by hand:
 
-1. In HACS, add this repository as a custom **Integration** repository.
-2. Install **Custom Fan** and restart Home Assistant.
-3. **Settings → Devices & services → Add integration → Custom Fan**, then
-   see [The integration](#the-integration) below.
+1. Open **HACS** in Home Assistant, then the three-dot menu → **Custom repositories**
+2. Add `https://github.com/Gamso/fan_bridge` with the category **Integration**
+3. Search for **FanBridge**, install it, and restart Home Assistant
 
-> Upgrading from a 1.1.x card install? HACS cannot change the category of a
-> repository it already knows: remove the old *Dashboard* repository and the
-> `custom-fan-card.js` resource first, then add it again as an *Integration*.
-> If both are kept, the bundle is loaded twice, which is harmless.
+The dashboard card comes with it: no Lovelace resource to add.
+
+> **Upgrading from a 1.1.x card install?** HACS cannot change the category of a repository it already knows: remove the old *Dashboard* repository and the old `custom-fan-card.js` resource first, then add it again as an *Integration* (the repository is now `Gamso/fan_bridge`; the old address redirects). `type: custom:custom-fan-card` in your dashboards keeps working, but `custom:fan-bridge-card` is the new name.
 >
-> HACS validates the latest *stable* release when a repository is added, so a
-> pre-release alone cannot be installed that way: enable *Show beta versions*
-> once the repository is added, or copy `custom_components/custom_fan` into
-> your `<config>/custom_components` folder.
+> **Pre-releases.** HACS validates the latest *stable* release when a repository is added, so a pre-release alone cannot be added. Enable *Show beta versions* on the repository once it is added, or copy `custom_components/fan_bridge` into `<config>/custom_components`.
 
-### Manual installation
+To use the card alone, see [Without the integration](docs/en/card.md#without-the-integration).
 
-1. Download `dist/custom-fan-card.js` from this repository.
-2. Copy it to `<config>/www/custom-fan-card.js` on your Home Assistant host
-   (create the `www` folder if needed, then restart Home Assistant once so
-   `/local/` is served).
-3. Go to **Settings → Dashboards → ⋮ → Resources → Add resource**, enter
-   `/local/custom-fan-card.js?v=1.2.0` and choose **JavaScript module**.
-   Change the `?v=` value after each update to bypass the browser cache.
-4. Refresh the browser. The browser console prints
-   `CUSTOM-FAN-CARD v1.2.0`: check that it shows the version you installed.
+## Getting started
 
-## The integration
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=fan_bridge)
 
-A fan often exists twice in Home Assistant, once per integration (a local one
-and a cloud one, for example Tuya Local and Tuya). The integration merges them
-into one set of entities that automations, scripts, voice assistants and the
-card can target, whatever integration is working at the time.
+Or:
 
-1. **Add the integration**: pick a name, the main fan and, optionally, a backup
-   fan. This creates a *Custom Fan* device.
-2. **Configure** (button on the integration's page), then:
-   - *Fan, light, timer and beep*: for each role, a main entity and a backup.
-     The main one is used while it is available, the backup takes over
-     otherwise, and the main one comes back as soon as it can.
-   - *Speed percentages*: for fans whose steps do not match their real speeds
-     (see `speed_percentages` below); the merged fan always exposes even steps.
-   - *Remotes*: map the buttons of a remote to actions.
-3. Use the entities it creates, named after the device: `fan.<name>`,
-   `light.<name>_light`, `select.<name>_timer`, `switch.<name>_sound`. The card
-   discovers them from `fan.<name>`.
+1. **Settings → Devices & Services → Add Integration → FanBridge**
+2. Name the fan, pick the fan entity and, optionally, a backup fan
+3. Add the **FanBridge** card to a dashboard (or `type: custom:fan-bridge-card`, `fan_entity: fan.<name>`)
 
-<p>
-  <img src="assets/integration_menu.png" alt="Configure menu" width="32%">
-  <img src="assets/integration_entities.png" alt="Main and backup entity of each role" width="32%">
-  <img src="assets/integration_remotes.png" alt="Remote buttons" width="32%">
-</p>
+Then open **Configure** to add the light, the timer, the beep, the speed percentages and the remote buttons, see [Configuration](docs/en/configuration.md).
 
-The merged entities:
+## Documentation
 
-| Entity                    | Behaviour                                                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `fan.<name>`              | Speed (even percentages), direction, presets and oscillation of the fan in charge; `source_entity` and `using_backup` attributes tell which one that is. |
-| `light.<name>_light`      | On/off, brightness and colour temperature of the light in charge.                                                     |
-| `select.<name>_timer`     | The stop timer as presets (off, 15 min, 30 min, 1 h, 2 h, 4 h, 8 h) for a number entity; its own options for a select. |
-| `switch.<name>_sound`     | The beep switch in charge.                                                                                            |
-
-### Remotes
-
-Each button maps **a source** to **an action**:
-
-- **Source**: an MQTT message (topic and payload, e.g.
-  `zigbee2mqtt/<remote>/action` and `1_single`), or an entity (a Zigbee2MQTT
-  action sensor, whose state is compared to the payload, or an `event` entity,
-  whose event type is). An empty payload matches any press.
-- **Action**: fan toggle / on / off, one speed up or down, set a given speed,
-  light toggle / on / off, direction toggle / forward / reverse, oscillation
-  toggle, next preset, beep toggle.
-
-<img src="assets/integration_remote_add.png" alt="Adding a remote button" width="40%">
-
-Actions go through the merged entities, so the backup fan, the speed
-percentages and the availability rules apply to a remote like they do to the
-card. This replaces automations such as "button 4 → set the percentage from a
-template".
-
-## Card configuration
-
-Only `fan_entity` is required. The light, timer, and sound entities are
-auto-discovered from the fan's base object id, so you can drop one card per fan
-with a single line of config. Add a second card for a second fan, etc.
-
-### Minimal
-
-```yaml
-type: custom:custom-fan-card
-fan_entity: fan.ceiling_fan_with_light
-```
-
-### Full
-
-```yaml
-type: custom:custom-fan-card
-fan_entity: fan.ceiling_fan_with_light
-fallback_fan_entity: fan.ceiling_fan_with_light_cloud # optional — used only while fan_entity is unavailable
-speed_percentages: [17, 33, 50, 67, 83, 100] # optional — percentage of each speed of fan_entity
-fallback_speed_percentages: [1, 21, 41, 60, 80, 100] # optional — same for fallback_fan_entity
-fallback_light_entity: light.ceiling_fan_with_light_cloud # optional — light used while the backup fan is in charge
-fallback_timer_entity: number.ceiling_fan_with_light_cloud_timer # optional
-fallback_sound_entity: switch.ceiling_fan_with_light_cloud_son # optional
-name: Ventilateur salon # optional — defaults to the fan's friendly name
-show_name: true # optional — default: true
-summer_direction: forward # optional — default: forward. Set to "reverse" if the fan's "reverse" direction is what actually cools the room in summer.
-light_independent: false # optional — default: false. Set to true if the light works while the fan is off.
-light_entity: light.ceiling_fan_with_light # optional — overrides auto-discovery
-timer_entity: number.ceiling_fan_with_light_minuteur # optional — number or select entity
-sound_entity: switch.ceiling_fan_with_light_son # optional — overrides auto-discovery
-```
-
-### Options
-
-| Option              | Type    | Default           | Description                                                                       |
-| ------------------- | ------- | ----------------- | --------------------------------------------------------------------------------- |
-| `fan_entity`        | string  | **required**      | The `fan` entity to control.                                                      |
-| `fallback_fan_entity` | string | none             | Second fan (e.g. the cloud twin of a local fan), used only while `fan_entity` is `unavailable`/`unknown`. Its light, timer and beep are discovered from its own name, or set with `fallback_light_entity` / `fallback_timer_entity` / `fallback_sound_entity`; `light_entity` / `timer_entity` / `sound_entity` apply to `fan_entity` only. |
-| `speed_percentages` | list    | from `percentage_step` | Percentage of each speed, lowest first. The card sends these values and reads the speed as the highest one not above the fan's percentage. For fans whose reported steps do not match their real speeds (cloud integrations often report 100 steps for 6 speeds). Max 10 values, strictly increasing. |
-| `fallback_speed_percentages` | list | from `percentage_step` | Same, for `fallback_fan_entity`. |
-| `name`              | string  | fan friendly name | Card title.                                                                       |
-| `show_name`         | boolean | `true`            | Show the card title.                                                              |
-| `summer_direction`  | string  | `forward`         | Which raw direction (`forward` / `reverse`) is summer mode.                       |
-| `light_independent` | boolean | `false`           | Keep the light button and colour-temperature slider usable while the fan is off. |
-| `light_entity`      | string  | auto-discovered   | `light` entity of the fan.                                                        |
-| `timer_entity`      | string  | auto-discovered   | Stop-timer entity (`number` or `select`).                                         |
-| `sound_entity`      | string  | auto-discovered   | `switch` entity of the audible beep.                                              |
-
-The visual editor asks for the fan entity, the card name, the "show name"
-toggle, the light, timer and beep entities, the "light works while the fan is
-off" toggle and — only when the fan entity supports the `direction` feature —
-the summer rotation direction. The entity pickers are pre-filled with what
-auto-discovery found; a discovered entity is only written to the YAML if you
-pick a different one, so discovery keeps working if you rename things later.
-The "Auto-discovered entities" panel shows what was found, and lists the
-candidates when the match is ambiguous.
-
-### Summer / winter mode
-
-Instead of raw "Normal / Reverse" labels, the card shows a sun/snowflake
-toggle in the status header for fans that support the `direction` feature.
-Since not every fan spins counter-clockwise for summer, `summer_direction`
-lets you tell the card which of the fan's two raw directions (`forward` or
-`reverse`) corresponds to summer mode — the card then maps the toggle to
-the right one and calls `fan.set_direction` accordingly.
-
-### Preset mode
-
-If the fan entity declares `preset_modes` and supports the `PRESET_MODE`
-feature, a preset dropdown appears in the header, below the summer/winter
-toggle — no extra config needed. Picking a preset calls `fan.set_preset_mode`;
-picking a speed on the speed bar hands control back to `fan.set_percentage`.
-
-A preset literally named `normal` (case-insensitive) is treated as "no active
-preset" — the header shows the current speed instead of the preset name. This
-matches fans (e.g. Klassfan) that expose their default manual mode as a
-`normal` preset alongside real presets like `sleep` or `nature`.
-
-### Light
-
-The CREATE Windcalm and Klassfan kits cut the light together with the fan, so
-by default the light button is disabled while the fan is off. Set
-`light_independent: true` for fans whose light works on its own.
-
-### Auto-discovery
-
-From `fan.ceiling_fan_with_light` the card extracts the base id
-`ceiling_fan_with_light` and, for each role, looks for:
-
-1. an entity named exactly like the fan (`light.ceiling_fan_with_light`; light
-   and timer only — a switch named like the fan is its power switch);
-2. otherwise, among entities named `<base>_…`, the one with a known suffix:
-   `light` / `lumiere` / `lamp` for the light, `timer` / `minuteur` /
-   `countdown` for the timer, `sound` / `son` / `beep` / `bip` / `buzzer` for
-   the beep — e.g. `number.ceiling_fan_with_light_minuteur`,
-   `switch.ceiling_fan_with_light_son`;
-3. otherwise, the only remaining `<base>_…` entity of the domain, unless its
-   suffix names another feature (`oscillation`, `swing`, `child_lock`, …) or
-   another role.
-
-Entities of another fan whose name extends this one are ignored: with
-`fan.ceiling_fan` and `fan.ceiling_fan_2`, the first card never picks
-`light.ceiling_fan_2_light`. When several entities match equally well, the
-card picks none and the editor lists the candidates: choose one in the
-editor (or with `light_entity`, `timer_entity`, `sound_entity`). Controls for
-entities that aren't found are simply hidden.
-
-The stop timer is looked up first in the `number` domain (used by the CREATE
-Windcalm fan), then in the `select` domain — some fans (e.g. Klassfan via
-`select.klassfan_ceiling_fan_minuteur`) expose the timer as a select entity
-with its own predefined list of options instead of a free-form number. The
-card detects which domain the resolved timer entity belongs to and calls
-`number.set_value` or `select.select_option` accordingly, rendering whatever
-options the select entity itself reports. A `number` timer set to a value
-outside the card's presets (e.g. 45 min) is shown as is.
-
-## Entities
-
-| Entity                                   | Role                         |
-| ---------------------------------------- | ---------------------------- |
-| `fan.ceiling_fan_with_light`             | Fan on/off + speed (0–100 %) |
-| `light.ceiling_fan_with_light`           | Ceiling light on/off         |
-| `number.ceiling_fan_with_light_minuteur` | Stop timer (minutes)         |
-| `switch.ceiling_fan_with_light_son`      | Audible beep on action       |
-
-Preset mode and oscillation aren't separate entities — they're read from the
-`fan` entity's own attributes and supported features, so there's nothing to
-auto-discover or override for them.
-
-### Speed mapping
-
-The fan entity uses a 0–100 % percentage. The number of speeds is
-`100 / percentage_step` as reported by Home Assistant (6 if the fan does not
-report it). A 6-speed fan gets named speeds:
-
-| Speed | Percentage | FR label  | EN label |
-| ----- | ---------- | --------- | -------- |
-| Off   | 0 %        | Arrêt     | Off      |
-| 1     | 17 %       | Très doux | Gentle   |
-| 2     | 33 %       | Doux      | Soft     |
-| 3     | 50 %       | Modéré    | Moderate |
-| 4     | 67 %       | Moyen     | Normal   |
-| 5     | 83 %       | Fort      | Strong   |
-| 6     | 100 %      | Turbo     | Turbo    |
-
-Other speed counts get numbered labels ("Speed 2" / "Vitesse 2"); a 3-speed
-fan shows 33 / 67 / 100 %. Clicking speed *n* sends
-`floor(n × 100 / speeds)` % to `fan.set_percentage` (16, 33, 50, 66, 83, 100 on
-6 speeds), the same value the Home Assistant UI sends: it is the upper bound
-of speed *n* for every integration, whether it rounds, rounds up or uses
-Home Assistant's ordered speed lists.
-
-### Theming
-
-Text, surfaces and borders come from the active Home Assistant theme
-(`--primary-text-color`, `--secondary-text-color`, `--card-background-color`),
-so the card renders correctly on light and dark themes. The accent is green;
-override it from a theme or with card-mod:
-
-| Variable                   | Default   | Used for                                |
-| -------------------------- | --------- | --------------------------------------- |
-| `--custom-fan-card-accent` | `#2fd1a0` | Dial, active controls, glow and effects |
-
-## Development
-
-### DevContainer (Recommended)
-
-To test the card in an isolated Home Assistant environment:
-
-1. Open the project in VS Code
-2. Install the **Dev Containers** extension
-3. Build the card on your host first: `npm install && npm run build`
-4. Click **"Reopen in Container"**
-5. Home Assistant will be available at `http://localhost:8123`
-
-See [.devcontainer/README.md](.devcontainer/README.md) for full details.
-
-### Checks
-
-```bash
-npm ci
-npm run typecheck   # tsc on sources and tests
-npm run lint        # ESLint
-npm test            # Vitest (jsdom)
-npm run build       # rebuilds dist/custom-fan-card.js
-```
-
-The integration lives in `custom_components/custom_fan/` and its tests in
-`tests/` (pytest with `pytest-homeassistant-custom-component`):
-
-```bash
-pip install -r requirements_test.txt
-pytest
-ruff check custom_components tests
-```
-
-`dist/custom-fan-card.js` and its copy
-`custom_components/custom_fan/www/custom-fan-card.js` are committed because the
-integration serves the latter and manual installs use the former: rebuild and
-commit both with every source change (`npm run build` writes both). CI fails
-when the committed bundles differ from a fresh build. `npm run watch` also writes a
-sourcemap for local debugging; it is git-ignored and never published.
+| Page | What it covers |
+| --- | --- |
+| [Configuration](docs/en/configuration.md) | Adding a fan, the options dialog and the entities |
+| [Main and backup fans](docs/en/fans.md) | Which entity is in charge, speed percentages, the merged entities |
+| [Remotes](docs/en/remotes.md) | Mapping remote buttons to actions |
+| [The card](docs/en/card.md) | What the card shows, its options, discovery, use without the integration |
+| [Entities and services](docs/en/reference.md) | Every entity, attribute and service, the card's bundle |
+| [Development](docs/en/development.md) | Repository layout, tests, building the card, devcontainer |
 
 ## Changelog
 

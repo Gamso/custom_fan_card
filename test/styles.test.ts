@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import "../src/custom-fan-card";
+import "../src/fan-bridge-card";
 
 type Styled = { styles: { cssText: string } };
-const css = (customElements.get("custom-fan-card") as unknown as Styled).styles.cssText;
+const css = (customElements.get("fan-bridge-card") as unknown as Styled).styles.cssText;
 
 describe("styles (audit A4, A5)", () => {
   it("uses hex colours only as theme-variable fallbacks or in the colour-temperature gradient", () => {
@@ -14,7 +14,7 @@ describe("styles (audit A4, A5)", () => {
   });
 
   it("lets the accent be themed and takes text colours from the HA theme", () => {
-    expect(css).toContain("var(--custom-fan-card-accent");
+    expect(css).toContain("var(--fan-bridge-card-accent");
     expect(css).toContain("var(--primary-text-color)");
   });
 

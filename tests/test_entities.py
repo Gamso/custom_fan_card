@@ -32,7 +32,7 @@ async def test_entity_ids_are_pinned_to_the_name(hass):
         ("switch", "sound", "switch.klassfan_sound"),
         ("select", "timer", "select.klassfan_timer"),
     ):
-        assert registry.async_get_entity_id(platform, "custom_fan", f"{entry.entry_id}_{key}") == entity_id
+        assert registry.async_get_entity_id(platform, "fan_bridge", f"{entry.entry_id}_{key}") == entity_id
 
 
 async def test_fan_follows_the_main_fan_while_it_works(hass):

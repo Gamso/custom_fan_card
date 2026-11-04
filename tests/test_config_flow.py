@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.custom_fan.const import DOMAIN
+from custom_components.fan_bridge.const import DOMAIN
 
 from .conftest import BACKUP, MAIN, make_entry, setup_entry
 

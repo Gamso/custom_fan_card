@@ -76,7 +76,7 @@ describe("service calls (audit B6, B7)", () => {
     const el = await mountCard({ fan_entity: FAN }, hass);
     ($(el, ".speed-seg") as HTMLButtonElement).click();
     await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(1));
-    expect(error.mock.calls[0][0]).toBe("custom-fan-card: fan.set_percentage failed");
+    expect(error.mock.calls[0][0]).toBe("fan-bridge-card: fan.set_percentage failed");
   });
 
   it("catches a synchronous throw too", async () => {
@@ -187,5 +187,14 @@ describe("dial", () => {
     expect($(el, ".badge")?.textContent?.trim()).toBe("Backup");
     const primary = await mountCard({ fan_entity: "fan.b", fallback_fan_entity: "fan.a" }, hass);
     expect($(primary, ".badge")).toBeNull();
+  });
+
+  it("flags a merged fan that reports it runs on its backup", async () => {
+    const attrs = { supported_features: 1 | 16 | 32, percentage: 50 };
+    const hass = makeHass([entity("fan.m", "on", { ...attrs, using_backup: true })]);
+    const el = await mountCard({ fan_entity: "fan.m" }, hass);
+    expect($(el, ".badge")?.textContent?.trim()).toBe("Backup");
+    const main = await mountCard({ fan_entity: "fan.m" }, makeHass([entity("fan.m", "on", { ...attrs, using_backup: false })]));
+    expect($(main, ".badge")).toBeNull();
   });
 });
