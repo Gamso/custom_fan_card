@@ -69,7 +69,7 @@
       },
       "remote_add": {
         "title": "Add a remote button",
-        "description": "Pick where the press comes from, what it sends, and what it does. For a Zigbee2MQTT remote use its MQTT topic (zigbee2mqtt/<name>/action) or its action sensor / event entity, and the action name as payload (e.g. 1_single).",
+        "description": "Pick where the press comes from, what it sends, and what it does. For a Zigbee2MQTT remote use its MQTT topic (zigbee2mqtt/REMOTE_NAME/action) or its action sensor / event entity, and the action name as payload (e.g. 1_single).",
         "data": {
           "source": "Source",
           "topic": "MQTT topic",

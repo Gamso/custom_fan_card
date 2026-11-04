@@ -69,7 +69,7 @@
       },
       "remote_add": {
         "title": "Ajouter un bouton de télécommande",
-        "description": "Choisis d'où vient l'appui, ce qu'il envoie et ce qu'il fait. Pour une télécommande Zigbee2MQTT, utilise son topic MQTT (zigbee2mqtt/<nom>/action) ou son capteur d'action / son entité événement, et le nom de l'action comme valeur (ex. 1_single).",
+        "description": "Choisis d'où vient l'appui, ce qu'il envoie et ce qu'il fait. Pour une télécommande Zigbee2MQTT, utilise son topic MQTT (zigbee2mqtt/NOM_TELECOMMANDE/action) ou son capteur d'action / son entité événement, et le nom de l'action comme valeur (ex. 1_single).",
         "data": {
           "source": "Source",
           "topic": "Topic MQTT",
