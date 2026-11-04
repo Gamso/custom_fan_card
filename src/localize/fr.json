@@ -55,6 +55,7 @@
     "summer_direction": "Sens de rotation en mode été",
     "dir_forward": "Normal",
     "dir_reverse": "Inverse",
+    "managed": "Géré par l'intégration Custom Fan : ventilateur de secours, lumière, minuterie, bip et pourcentages des vitesses se règlent dans son bouton Configurer.",
     "discovered": "Entités auto-détectées",
     "not_found": "introuvable",
     "light_entity": "Entité lumière (facultatif)",

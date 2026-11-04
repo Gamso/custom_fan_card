@@ -68,7 +68,26 @@ class CustomFanCardEditor extends LitElement {
     return data;
   }
 
+  // A fan merged by the Custom Fan integration: its backup, light, timer, beep
+  // and speed percentages are set in the integration, not on the card.
+  private get _managed(): boolean {
+    const attributes = this.hass?.states?.[this._config?.fan_entity]?.attributes;
+    return typeof attributes?.using_backup === "boolean";
+  }
+
   private get _schema() {
+    if (this._managed) {
+      const managed: Record<string, unknown>[] = [
+        { name: "fan_entity", required: true, selector: { entity: { domain: "fan" } } },
+        { name: "name", selector: { text: {} } },
+        { name: "show_name", selector: { boolean: {} } },
+        { name: "light_independent", selector: { boolean: {} } },
+      ];
+      if (fanSupportsDirection(this.hass.states[this._config.fan_entity])) {
+        managed.push(this._directionField());
+      }
+      return managed;
+    }
     const schema: Record<string, unknown>[] = [
       {
         name: "fan_entity",
@@ -98,22 +117,24 @@ class CustomFanCardEditor extends LitElement {
     }
 
     const fanState = this.hass?.states?.[this._config?.fan_entity];
-    if (fanSupportsDirection(fanState)) {
-      schema.push({
-        name: "summer_direction",
-        selector: {
-          select: {
-            mode: "list",
-            options: [
-              { value: "forward", label: this._t("editor.dir_forward") },
-              { value: "reverse", label: this._t("editor.dir_reverse") },
-            ],
-          },
-        },
-      });
-    }
+    if (fanSupportsDirection(fanState)) schema.push(this._directionField());
 
     return schema;
+  }
+
+  private _directionField(): Record<string, unknown> {
+    return {
+      name: "summer_direction",
+      selector: {
+        select: {
+          mode: "list",
+          options: [
+            { value: "forward", label: this._t("editor.dir_forward") },
+            { value: "reverse", label: this._t("editor.dir_reverse") },
+          ],
+        },
+      },
+    };
   }
 
   private _t(key: TranslationKey): string {
@@ -206,6 +227,7 @@ class CustomFanCardEditor extends LitElement {
     if (!this.hass || !this._config) return html``;
     const discovered = this._discovered;
     return html`
+      ${this._managed ? html`<div class="managed">${this._t("editor.managed")}</div>` : nothing}
       <ha-form
         .hass=${this.hass}
         .data=${this._formData(discovered)}
@@ -213,13 +235,21 @@ class CustomFanCardEditor extends LitElement {
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
-      ${this._renderDiscovered(discovered)}
+      ${this._managed ? nothing : this._renderDiscovered(discovered)}
     `;
   }
 
   static styles = css`
     ha-form {
       width: 100%;
+    }
+    .managed {
+      margin-bottom: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+      font-size: 13px;
     }
     .discovered {
       margin-top: 16px;

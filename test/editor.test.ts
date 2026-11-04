@@ -93,4 +93,24 @@ describe("editor", () => {
     expect(root.querySelector(".dr-id.ambiguous")?.textContent).toContain("several matches");
     expect(root.querySelector(".dr-candidates")?.textContent).toBe("switch.f_sound, switch.f_beep");
   });
+  it("leaves the backup, entities and speeds to the integration for a merged fan", async () => {
+    const el = document.createElement("custom-fan-card-editor") as EditorElement;
+    el.hass = makeHass([
+      entity("fan.f", "on", { supported_features: 4, using_backup: false, source_entity: "fan.local" }),
+      entity("light.f_light", "on", {}),
+    ]);
+    el.setConfig({ fan_entity: "fan.f" });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const form = el.shadowRoot!.querySelector("ha-form") as FormElement;
+    expect(form.schema.map((s) => s.name)).toEqual([
+      "fan_entity",
+      "name",
+      "show_name",
+      "light_independent",
+      "summer_direction",
+    ]);
+    expect(el.shadowRoot!.querySelector(".managed")).not.toBeNull();
+    expect(el.shadowRoot!.querySelector(".discovered")).toBeNull();
+  });
 });
