@@ -39,11 +39,40 @@ jobs:
 
       # HACS serves the committed bundle: fail if it is not the output of the
       # committed sources.
-      - name: Check that dist/ is up to date
+      - name: Check that the bundles are up to date
         run: |
-          git status --porcelain dist/
-          git diff --exit-code -- dist/
-          test -z "$(git status --porcelain dist/)"
+          git status --porcelain dist/ custom_components/fan_bridge/www/
+          git diff --exit-code -- dist/ custom_components/fan_bridge/www/
+          test -z "$(git status --porcelain dist/ custom_components/fan_bridge/www/)"
+
+  integration:
+    name: Integration tests and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements_test.txt
+
+      - name: Lint
+        run: ruff check custom_components tests
+
+      - name: Test
+        run: pytest -v --tb=short
+
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: home-assistant/actions/hassfest@master
 
   hacs:
     name: HACS validation
@@ -53,5 +82,5 @@ jobs:
 
       - uses: hacs/action@main
         with:
-          category: plugin
+          category: integration
           ignore: brands

@@ -18,7 +18,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("custom-fan-card render", () => {
+describe("fan-bridge-card render", () => {
   it("renders six speed segments for a 6-speed fan", async () => {
     const el = await mountCard({ fan_entity: FAN }, makeHass([windcalm()]));
     expect($$(el, ".speed-seg")).toHaveLength(6);

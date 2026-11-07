@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { $, entity, makeHass, mountCard } from "./helpers";
+import { $, entity, makeHass, mountCard, openTempPanel } from "./helpers";
 
 const FAN = "fan.f";
 const fan = (state: string) => entity(FAN, state, { supported_features: 1 | 16 | 32, percentage: 0 });
@@ -21,6 +21,7 @@ describe("light_independent (audit A3)", () => {
     const el = await mountCard({ fan_entity: FAN }, makeHass([fan("off"), light()]));
     expect(lightBtn(el).disabled).toBe(true);
     // Unchanged default: the slider only follows the fan's availability.
+    await openTempPanel(el);
     expect(slider(el).disabled).toBe(false);
   });
 
@@ -28,6 +29,7 @@ describe("light_independent (audit A3)", () => {
     const hass = makeHass([fan("off"), light()]);
     const el = await mountCard({ fan_entity: FAN, light_independent: true }, hass);
     expect(lightBtn(el).disabled).toBe(false);
+    await openTempPanel(el);
     expect(slider(el).disabled).toBe(false);
     lightBtn(el).click();
     expect(hass.callService).toHaveBeenCalledWith("light", "toggle", { entity_id: "light.f" });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import "../src/custom-fan-card";
+import "../src/fan-bridge-card";
 
 type Styled = { styles: { cssText: string } };
-const css = (customElements.get("custom-fan-card") as unknown as Styled).styles.cssText;
+const css = (customElements.get("fan-bridge-card") as unknown as Styled).styles.cssText;
 
 describe("styles (audit A4, A5)", () => {
   it("uses hex colours only as theme-variable fallbacks or in the colour-temperature gradient", () => {
@@ -13,8 +13,9 @@ describe("styles (audit A4, A5)", () => {
     expect(stripped.match(/#[0-9a-f]{3,8}\b/gi)).toBeNull();
   });
 
-  it("derives the accent from the theme's primary colour", () => {
-    expect(css).toContain("var(--primary-color");
+  it("lets the accent be themed and takes text colours from the HA theme", () => {
+    expect(css).toContain("var(--fan-bridge-card-accent");
+    expect(css).toContain("var(--primary-text-color)");
   });
 
   it("stops the spin for users who prefer reduced motion", () => {

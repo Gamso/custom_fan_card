@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CustomFanCardConfig } from "../src/types";
+import type { FanBridgeCardConfig } from "../src/types";
 import { entity, makeHass } from "./helpers";
-import "../src/custom-fan-card-editor";
+import "../src/fan-bridge-card-editor";
 
 type EditorElement = HTMLElement & {
   hass: ReturnType<typeof makeHass>;
-  setConfig(config: CustomFanCardConfig): void;
+  setConfig(config: FanBridgeCardConfig): void;
   updateComplete: Promise<boolean>;
 };
 
 type FormElement = HTMLElement & {
-  data: CustomFanCardConfig;
+  data: FanBridgeCardConfig;
   schema: { name: string }[];
 };
 
-async function mountEditor(config: CustomFanCardConfig, ids: string[]) {
-  const el = document.createElement("custom-fan-card-editor") as EditorElement;
+async function mountEditor(config: FanBridgeCardConfig, ids: string[]) {
+  const el = document.createElement("fan-bridge-card-editor") as EditorElement;
   el.hass = makeHass(ids.map((id) => entity(id, "on", id.startsWith("fan.") ? { supported_features: 4 } : {})));
   el.setConfig(config);
   document.body.appendChild(el);
@@ -24,7 +24,7 @@ async function mountEditor(config: CustomFanCardConfig, ids: string[]) {
   return { el, form };
 }
 
-function emit(form: HTMLElement, value: CustomFanCardConfig) {
+function emit(form: HTMLElement, value: FanBridgeCardConfig) {
   form.dispatchEvent(new CustomEvent("value-changed", { detail: { value } }));
 }
 
@@ -39,6 +39,8 @@ describe("editor", () => {
     const { form } = await mountEditor({ fan_entity: "fan.f" }, IDS);
     expect(form.schema.map((s) => s.name)).toEqual([
       "fan_entity",
+      "fallback_fan_entity",
+      "speed_percentages",
       "name",
       "show_name",
       "light_entity",
@@ -90,5 +92,25 @@ describe("editor", () => {
     const root = el.shadowRoot!;
     expect(root.querySelector(".dr-id.ambiguous")?.textContent).toContain("several matches");
     expect(root.querySelector(".dr-candidates")?.textContent).toBe("switch.f_sound, switch.f_beep");
+  });
+  it("leaves the backup, entities and speeds to the integration for a merged fan", async () => {
+    const el = document.createElement("fan-bridge-card-editor") as EditorElement;
+    el.hass = makeHass([
+      entity("fan.f", "on", { supported_features: 4, using_backup: false, source_entity: "fan.local" }),
+      entity("light.f_light", "on", {}),
+    ]);
+    el.setConfig({ fan_entity: "fan.f" });
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const form = el.shadowRoot!.querySelector("ha-form") as FormElement;
+    expect(form.schema.map((s) => s.name)).toEqual([
+      "fan_entity",
+      "name",
+      "show_name",
+      "light_independent",
+      "summer_direction",
+    ]);
+    expect(el.shadowRoot!.querySelector(".managed")).not.toBeNull();
+    expect(el.shadowRoot!.querySelector(".discovered")).toBeNull();
   });
 });

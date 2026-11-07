@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import type { HassEntity, HomeAssistant } from "../src/ha-types";
-import "../src/custom-fan-card";
-import type { CustomFanCardConfig } from "../src/types";
+import "../src/fan-bridge-card";
+import type { FanBridgeCardConfig } from "../src/types";
 
 export function entity(
   entity_id: string,
@@ -27,21 +27,27 @@ export function makeHass(
 
 export type CardElement = HTMLElement & {
   hass: HomeAssistant;
-  setConfig(config: CustomFanCardConfig): void;
+  setConfig(config: FanBridgeCardConfig): void;
   updateComplete: Promise<boolean>;
   getCardSize(): number;
 };
 
 export async function mountCard(
-  config: CustomFanCardConfig,
+  config: FanBridgeCardConfig,
   hass: HomeAssistant,
 ): Promise<CardElement> {
-  const el = document.createElement("custom-fan-card") as CardElement;
+  const el = document.createElement("fan-bridge-card") as CardElement;
   el.setConfig(config);
   el.hass = hass;
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
+}
+
+// The colour-temperature slider is tucked behind a toggle next to the light chip.
+export async function openTempPanel(el: CardElement): Promise<void> {
+  ($(el, ".temp-toggle") as HTMLButtonElement).click();
+  await el.updateComplete;
 }
 
 export function $(el: HTMLElement, selector: string): HTMLElement | null {

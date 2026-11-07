@@ -2,15 +2,15 @@
 set -e
 
 echo "════════════════════════════════════════════════════"
-echo "  Custom Fan Card – Home Assistant DevContainer setup"
+echo "  FanBridge Card – Home Assistant DevContainer setup"
 echo "════════════════════════════════════════════════════"
 echo ""
 
-WORKSPACE=/workspaces/custom_fan_card
+WORKSPACE=/workspaces/fan_bridge
 CONFIG=/config
 
 # ── Directories ──────────────────────────────────────────────────────────────
-mkdir -p "$CONFIG/www/custom_fan_card"
+mkdir -p "$CONFIG/www/fan_bridge"
 mkdir -p "$CONFIG/.storage"
 mkdir -p "$CONFIG/custom_components"
 
@@ -31,18 +31,18 @@ if [ ! -f "$CONFIG/ui-lovelace.yaml" ] || \
 fi
 
 # ── Card JS file ─────────────────────────────────────────────────────────────
-if [ -f "$WORKSPACE/dist/custom-fan-card.js" ]; then
-  echo "✅ custom-fan-card.js found in dist/ – mounted automatically via devcontainer."
+if [ -f "$WORKSPACE/dist/fan-bridge-card.js" ]; then
+  echo "✅ fan-bridge-card.js found in dist/ – mounted automatically via devcontainer."
 else
   echo ""
-  echo "⚠️  WARNING: dist/custom-fan-card.js not found."
+  echo "⚠️  WARNING: dist/fan-bridge-card.js not found."
   echo ""
   echo "   Build the card first on your HOST machine:"
   echo "   1. cd $WORKSPACE"
   echo "   2. npm install"
   echo "   3. npm run build"
   echo ""
-  echo "   The dist/ folder is mounted into /config/www/custom_fan_card/,"
+  echo "   The dist/ folder is mounted into /config/www/fan_bridge/,"
   echo "   so the card will appear automatically after building."
 fi
 

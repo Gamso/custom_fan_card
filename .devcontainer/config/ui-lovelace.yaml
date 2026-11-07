@@ -1,9 +1,9 @@
-title: Custom Fan Card Dev
+title: FanBridge Card Dev
 views:
   - title: Fan card
     icon: mdi:fan
     cards:
-      - type: custom:custom-fan-card
+      - type: custom:fan-bridge-card
         fan_entity: fan.ceiling_fan_with_light
         light_entity: light.ceiling_fan_with_light
         timer_entity: number.ceiling_fan_with_light_minuteur
