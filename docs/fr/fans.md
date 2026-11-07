@@ -23,6 +23,14 @@ Les entités fusionnées indiquent laquelle est en service :
 
 Les commandes vont à l'entité en service. L'état du ventilateur (vitesse, sens, préréglages, oscillation) est lu sur elle, et l'entité fusionnée expose ce que ce ventilateur sait faire.
 
+## Recharger l'intégration principale
+
+Certaines intégrations locales (Tuya Local, par exemple) échouent à leur démarrage quand l'appareil est éteint, et ne se rétablissent pas à son retour tant qu'on ne les recharge pas à la main. Dans **Configurer → Ventilateur, lumière, minuterie et bip**, active **Recharger l'intégration du ventilateur principal pendant que le secours est en service** : tant que le ventilateur de secours est en service, FanBridge recharge l'entrée de configuration qui fournit le principal après 2, 5, 10 puis toutes les 30 minutes, jusqu'au retour du ventilateur principal.
+
+- C'est **désactivé par défaut**, car cela recharge une autre intégration (ce qui coupe brièvement ses autres appareils).
+- Rien ne se passe quand les deux ventilateurs sont indisponibles, ni quand le principal n'a pas d'entrée de configuration (entité YAML ou template).
+- **Présence de l'appareil principal** (facultatif) prend un `binary_sensor` ou un `device_tracker`, typiquement un capteur [Ping](https://www.home-assistant.io/integrations/ping/) sur l'adresse IP de l'appareil. Tant qu'il est éteint, rien n'est retenté, et dès qu'il passe à on l'intégration est rechargée tout de suite.
+
 ## Pourcentages des vitesses
 
 Deux intégrations s'accordent rarement sur les vitesses d'un même ventilateur. Une intégration locale annonce 6 pas de 16,67 % quand la cloud annonce 100 pas, ou accepte 1 / 21 / 41 / 60 / 80 / 100 pour les vitesses 1 à 6. Sans aide, une vitesse envoyée par l'une est lue comme une autre par l'autre.

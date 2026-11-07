@@ -6,7 +6,9 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .frontend import async_register_card
-from .group import FanGroup
+from .const import CONF_RELOAD_MAIN
+from .group import FanGroup, merged_config
+from .recovery import MainRecovery
 from .remotes import RemoteManager
 
 PLATFORMS: list[Platform] = [Platform.FAN, Platform.LIGHT, Platform.SELECT, Platform.SWITCH]
@@ -23,6 +25,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: FanBridgeConfigEntry) ->
 
     for unsubscribe in await RemoteManager(hass, entry.runtime_data).async_start():
         entry.async_on_unload(unsubscribe)
+
+    if merged_config(entry).get(CONF_RELOAD_MAIN):
+        entry.async_on_unload(MainRecovery(hass, entry.runtime_data).async_start())
 
     # The options flow rewrites the entry: rebuild everything from it.
     entry.async_on_unload(entry.add_update_listener(_async_reload))

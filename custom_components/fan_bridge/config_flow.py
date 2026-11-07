@@ -25,6 +25,8 @@ from .const import (
     CONF_REMOTE_SOURCE,
     CONF_REMOTE_SPEED,
     CONF_REMOTE_TOPIC,
+    CONF_PRESENCE,
+    CONF_RELOAD_MAIN,
     CONF_REMOTES,
     CONF_SOUND,
     CONF_SPEEDS,
@@ -138,6 +140,8 @@ class FanBridgeOptionsFlow(OptionsFlow):
                 # creation flow stored.
                 for key in (CONF_FAN, CONF_FALLBACK_FAN, CONF_LIGHT, CONF_FALLBACK_LIGHT, CONF_TIMER, CONF_FALLBACK_TIMER, CONF_SOUND, CONF_FALLBACK_SOUND):
                     self._options[key] = user_input.get(key) or ""
+                self._options[CONF_RELOAD_MAIN] = bool(user_input.get(CONF_RELOAD_MAIN))
+                self._options[CONF_PRESENCE] = user_input.get(CONF_PRESENCE) or ""
                 return await self.async_step_menu()
 
         data = user_input or current
@@ -151,6 +155,8 @@ class FanBridgeOptionsFlow(OptionsFlow):
                 _entity_marker(CONF_FALLBACK_TIMER, data.get(CONF_FALLBACK_TIMER)): _entity(["number", "select"]),
                 _entity_marker(CONF_SOUND, data.get(CONF_SOUND)): _entity("switch"),
                 _entity_marker(CONF_FALLBACK_SOUND, data.get(CONF_FALLBACK_SOUND)): _entity("switch"),
+                vol.Optional(CONF_RELOAD_MAIN, default=bool(data.get(CONF_RELOAD_MAIN))): selector.BooleanSelector(),
+                _entity_marker(CONF_PRESENCE, data.get(CONF_PRESENCE)): _entity(["binary_sensor", "device_tracker"]),
             }
         )
         return self.async_show_form(step_id="entities", data_schema=schema, errors=errors)

@@ -45,9 +45,15 @@
           "timer_entity": "Minuterie d'arrêt",
           "fallback_timer_entity": "Minuterie d'arrêt de secours",
           "sound_entity": "Interrupteur du bip",
-          "fallback_sound_entity": "Interrupteur du bip de secours"
+          "fallback_sound_entity": "Interrupteur du bip de secours",
+          "reload_main": "Recharger l'intégration du ventilateur principal pendant que le secours est en service",
+          "presence_entity": "Présence de l'appareil principal (facultatif)"
         },
-        "submit": "Retour au menu"
+        "submit": "Retour au menu",
+        "data_description": {
+          "reload_main": "Retente toutes les quelques minutes (2, 5, 10, puis 30) jusqu'au retour du ventilateur principal. Utile pour les intégrations locales qui ne se rétablissent pas seules après un redémarrage avec l'appareil éteint.",
+          "presence_entity": "Une entité ping ou device tracker pour l'IP de l'appareil. Tant qu'elle est éteinte, rien n'est retenté, et dès qu'elle passe à on l'intégration est rechargée."
+        }
       },
       "speeds": {
         "title": "Pourcentages des vitesses",

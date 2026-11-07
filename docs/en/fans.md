@@ -23,6 +23,14 @@ The merged entities tell which one is in charge:
 
 Commands go to the entity in charge. The fan's own state (speed, direction, presets, oscillation) is read from it, and the merged entity exposes what that fan supports.
 
+## Reloading the main integration
+
+Some local integrations (Tuya Local, for example) fail their setup when the device is off at startup and do not recover when it comes back until they are reloaded by hand. In **Configure → Fan, light, timer and beep**, turn on **Reload the main fan's integration while the backup is in charge**: while the backup fan is in charge, FanBridge reloads the config entry that provides the main fan after 2, 5, 10 and then every 30 minutes, until the main fan is available again.
+
+- It is **off by default**, since it reloads another integration (which briefly interrupts its other devices).
+- Nothing happens when both fans are unavailable, or when the main fan has no config entry (a YAML or template entity).
+- **Presence of the main device** (optional) takes a `binary_sensor` or `device_tracker`, typically a [Ping](https://www.home-assistant.io/integrations/ping/) sensor on the device's IP address. While it is off, nothing is retried, and as soon as it turns on the integration is reloaded at once.
+
 ## Speed percentages
 
 Two integrations seldom agree on the speeds of the same fan. A local integration reports 6 steps of 16.67 % while the cloud one reports 100 steps, or accepts 1 / 21 / 41 / 60 / 80 / 100 for speeds 1 to 6. Without help, a speed sent through one integration is read as another one through the other.

@@ -17,6 +17,8 @@ CONF_FALLBACK_SOUND = "fallback_sound_entity"
 CONF_SPEEDS = "speed_percentages"
 CONF_FALLBACK_SPEEDS = "fallback_speed_percentages"
 CONF_REMOTES = "remotes"
+CONF_RELOAD_MAIN = "reload_main"
+CONF_PRESENCE = "presence_entity"
 
 # Keys of one remote mapping.
 CONF_REMOTE_SOURCE = "source"
@@ -78,3 +80,7 @@ MAX_SPEED_COUNT = 10
 # Presets offered by the timer select when the underlying timer is a number
 # (minutes), same list as the card.
 TIMER_PRESETS_MIN = (0, 15, 30, 60, 120, 240, 480)
+
+# Delays (seconds) between two reloads of the main fan's integration while the
+# backup is in charge; the last one repeats.
+RELOAD_DELAYS = (120, 300, 600, 1800)

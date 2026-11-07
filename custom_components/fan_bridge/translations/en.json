@@ -45,9 +45,15 @@
           "timer_entity": "Stop timer",
           "fallback_timer_entity": "Backup stop timer",
           "sound_entity": "Beep switch",
-          "fallback_sound_entity": "Backup beep switch"
+          "fallback_sound_entity": "Backup beep switch",
+          "reload_main": "Reload the main fan's integration while the backup is in charge",
+          "presence_entity": "Presence of the main device (optional)"
         },
-        "submit": "Back to the menu"
+        "submit": "Back to the menu",
+        "data_description": {
+          "reload_main": "Retries every few minutes (2, 5, 10, then 30) until the main fan is back. Useful for local integrations that do not recover on their own after a restart with the device off.",
+          "presence_entity": "A ping or device tracker entity for the device's IP. While it is off nothing is retried, and as soon as it turns on the integration is reloaded."
+        }
       },
       "speeds": {
         "title": "Speed percentages",

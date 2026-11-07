@@ -8,6 +8,7 @@
 - **Card, backup fan**: `fallback_fan_entity` with `fallback_light_entity`, `fallback_timer_entity` and `fallback_sound_entity`, and a badge while the backup is in charge.
 - **Card, speed percentages**: `speed_percentages` and `fallback_speed_percentages` for fans whose reported steps do not match their real speeds.
 - Cache busting: the card is loaded as `?v=<version>-<hash>`, so an update never serves a stale bundle.
+- **Reload the main integration** (opt-in): while the backup fan is in charge, reload the config entry that provides the main fan, with a growing delay, optionally gated by a ping or device tracker entity. See [Main and backup fans](docs/en/fans.md#reloading-the-main-integration).
 - Documentation in English and French (`docs/`).
 
 ### Changed
